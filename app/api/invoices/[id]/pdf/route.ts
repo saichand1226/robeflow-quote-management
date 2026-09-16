@@ -1,0 +1,8 @@
+import { eq } from "drizzle-orm";
+import { getDb } from "../../../../../db";
+import { companySettings,paymentTransactions,quoteItems,quotes } from "../../../../../db/schema";
+import { createInvoicePdf } from "../../../../../lib/invoice-pdf";
+import { requireRolesApi } from "../../../../api-auth";
+
+const dummyBank="XYZ Bank\nAccount name: RobeFlow Wardrobes\nAccount number: 00-0000-0000000-00\nReference: Use your invoice number";
+export async function GET(_:Request,context:{params:Promise<{id:string}>}){const denied=await requireRolesApi(["Accounts","Operations","Staff"]);if(denied)return denied;const id=Number((await context.params).id),db=getDb(),[quote]=await db.select().from(quotes).where(eq(quotes.id,id)).limit(1);if(!quote||!quote.invoiceNumber)return Response.json({error:"Invoice not found."},{status:404});const lines=await db.select().from(quoteItems).where(eq(quoteItems.quoteId,id)).orderBy(quoteItems.sortOrder),items=[...lines,...(quote.servicePrice>0?[{category:quote.serviceType,systemType:"Service",colour:"",price:quote.servicePrice}]:[])],payments=await db.select().from(paymentTransactions).where(eq(paymentTransactions.quoteId,id)),[settings]=await db.select().from(companySettings).where(eq(companySettings.id,1)).limit(1),pdf=await createInvoicePdf({...quote,items,payments,bankDetails:settings?.bankDetails.trim()||dummyBank,companyNameSetting:settings?.companyName||"RobeFlow Wardrobes",companyAddress:settings?.address||"Christchurch, New Zealand",gstNumber:settings?.gstNumber||""});return new Response(pdf as Uint8Array<ArrayBuffer>,{headers:{"Content-Type":"application/pdf","Content-Disposition":`attachment; filename="${quote.invoiceNumber}.pdf"`}})}

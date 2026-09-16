@@ -1,0 +1,1 @@
+ALTER TABLE `quotes` ADD `payment_note` text DEFAULT '' NOT NULL;

@@ -1,0 +1,7 @@
+import { desc,eq } from "drizzle-orm";
+import { getDb } from "../../../db";
+import { customers,productCatalog,quotes } from "../../../db/schema";
+import { requireAdminApi } from "../../api-auth";
+
+export async function GET(){const denied=await requireAdminApi();if(denied)return denied;const db=getDb();const [archivedQuotes,archivedCustomers,archivedProducts]=await Promise.all([db.select().from(quotes).where(eq(quotes.archived,true)).orderBy(desc(quotes.createdAt)),db.select().from(customers).where(eq(customers.archived,true)).orderBy(desc(customers.createdAt)),db.select().from(productCatalog).where(eq(productCatalog.active,false)).orderBy(desc(productCatalog.createdAt))]);return Response.json({quotes:archivedQuotes,customers:archivedCustomers,products:archivedProducts})}
+export async function PATCH(request:Request){const denied=await requireAdminApi();if(denied)return denied;const body=await request.json() as {type?:string;id?:number};if(!body.id||!["quote","customer","product"].includes(body.type??""))return Response.json({error:"Invalid archive item."},{status:400});const db=getDb();if(body.type==="quote")await db.update(quotes).set({archived:false}).where(eq(quotes.id,body.id));if(body.type==="customer")await db.update(customers).set({archived:false}).where(eq(customers.id,body.id));if(body.type==="product")await db.update(productCatalog).set({active:true}).where(eq(productCatalog.id,body.id));return Response.json({success:true})}

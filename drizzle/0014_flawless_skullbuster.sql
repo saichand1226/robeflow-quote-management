@@ -1,0 +1,1 @@
+ALTER TABLE `quotes` ADD `discount_percent` real DEFAULT 0 NOT NULL;
