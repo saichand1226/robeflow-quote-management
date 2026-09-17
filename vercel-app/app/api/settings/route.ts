@@ -1,0 +1,3 @@
+import { camel, requireStaff, snake } from "@/lib/api-auth";
+export async function GET(){const auth=await requireStaff();if(auth.error)return auth.error;const{data,error}=await auth.supabase.from("company_settings").select("*").eq("id",1).single();return error?Response.json({error:error.message},{status:500}):Response.json({settings:camel(data)})}
+export async function PATCH(request:Request){const auth=await requireStaff(["Admin"]);if(auth.error)return auth.error;const b=await request.json();delete b.id;const{data,error}=await auth.supabase.from("company_settings").upsert({id:1,...snake(b)}).select().single();return error?Response.json({error:error.message},{status:400}):Response.json({settings:camel(data)})}
