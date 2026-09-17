@@ -1,54 +1,53 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@supabase/supabase-js";
 import { camel } from "@/lib/api-auth";
 
-function publicErrorCode(error: unknown) {
-  const detail = error && typeof error === "object" ? error as { code?: unknown; message?: unknown } : {};
-  const providerCode = typeof detail.code === "string" && /^[A-Z0-9]{3,12}$/.test(detail.code) ? detail.code : "";
-  if (providerCode) return `DB-${providerCode}`;
-  const message = error instanceof Error ? error.message : typeof detail.message === "string" ? detail.message : "";
-  if (/not configured|missing/i.test(message)) return "CONFIG";
-  if (/jwt|api key|unauthorized|forbidden|permission/i.test(message)) return "AUTH";
-  if (/relation|column|schema|cache|query/i.test(message)) return "SCHEMA";
-  return "DATABASE";
+function publicClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) throw new Error("Public quote access is not configured.");
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+
+function cleanToken(value: string) {
+  const token = decodeURIComponent(value || "").trim();
+  return !token || token === "null" || token === "undefined" ? "" : token;
 }
 
 export async function GET(_: Request, { params }: { params: Promise<{ token: string }> }) {
   try {
-    const supabase = createAdminClient();
-    const token = decodeURIComponent((await params).token || "").trim();
-    if (!token || token === "null" || token === "undefined") {
-      return Response.json({ error: "This quotation link is incomplete. Please ask the sender to email the quote again." }, { status: 400 });
-    }
+    const token = cleanToken((await params).token);
+    if (!token) return Response.json({ error: "This quotation link is incomplete. Please ask the sender to email the quote again." }, { status: 400 });
 
-    const { data: quote, error: quoteError } = await supabase.from("quotes").select("*").eq("acceptance_token", token).maybeSingle();
-    if (quoteError) throw quoteError;
-    if (!quote) return Response.json({ error: "This quotation link is invalid or no longer available." }, { status: 404 });
+    const { data, error } = await publicClient().rpc("get_public_quote", { p_token: token });
+    if (error) throw error;
+    const raw = data?.quote;
+    if (!raw) return Response.json({ error: "This quotation link is invalid or no longer available." }, { status: 404 });
 
-    const { data: items, error: itemsError } = await supabase.from("quote_items").select("*").eq("quote_id", quote.id).order("sort_order");
-    if (itemsError) throw itemsError;
-    return Response.json({ quote: { ...camel(quote), items: (items ?? []).map(camel) } });
+    return Response.json({ quote: { ...camel(raw), items: (raw.quote_items ?? []).map(camel) } });
   } catch (error) {
     console.error("Public quote load failed", error);
-    const code = publicErrorCode(error);
-    return Response.json({ error: `The quotation could not be loaded (reference: ${code}).` }, { status: 500 });
+    return Response.json({ error: "The quotation could not be loaded. Please try again shortly." }, { status: 500 });
   }
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
   try {
-    const supabase = createAdminClient();
-    const token = decodeURIComponent((await params).token || "").trim();
-    if (!token || token === "null" || token === "undefined") return Response.json({ error: "This quotation link is incomplete." }, { status: 400 });
-    const body = await request.json(), status = body.status || body.decision;
+    const token = cleanToken((await params).token);
+    if (!token) return Response.json({ error: "This quotation link is incomplete." }, { status: 400 });
+
+    const body = await request.json();
+    const status = body.status || body.decision;
     if (!["Accepted", "Declined"].includes(status)) return Response.json({ error: "Choose accept or decline." }, { status: 400 });
 
-    const changes: Record<string, string> = { status, customer_comment: body.comment?.trim() || "", purchase_order_number: body.purchaseOrderNumber?.trim() || "" };
-    if (status === "Accepted") { changes.accepted_at = new Date().toISOString(); changes.job_stage = "Site measure required"; }
-    const { data, error } = await supabase.from("quotes").update(changes).eq("acceptance_token", token).select().maybeSingle();
+    const { data, error } = await publicClient().rpc("respond_to_public_quote", {
+      p_token: token,
+      p_status: status,
+      p_purchase_order_number: body.purchaseOrderNumber?.trim() || "",
+      p_comment: body.comment?.trim() || "",
+    });
     if (error) throw error;
     if (!data) return Response.json({ error: "This quotation is no longer available." }, { status: 404 });
-    await supabase.from("quote_activities").insert({ quote_id: data.id, action: `Quote ${status.toLowerCase()}`, detail: changes.customer_comment, actor: "Customer" });
-    return Response.json({ success: true, status });
+    return Response.json({ success: true, status: data.status });
   } catch (error) {
     console.error("Public quote response failed", error);
     return Response.json({ error: "Your response could not be saved. Please try again." }, { status: 500 });
