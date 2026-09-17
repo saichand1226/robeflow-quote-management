@@ -2,7 +2,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { camel } from "@/lib/api-auth";
 
 function publicErrorCode(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
+  const detail = error && typeof error === "object" ? error as { code?: unknown; message?: unknown } : {};
+  const providerCode = typeof detail.code === "string" && /^[A-Z0-9]{3,12}$/.test(detail.code) ? detail.code : "";
+  if (providerCode) return `DB-${providerCode}`;
+  const message = error instanceof Error ? error.message : typeof detail.message === "string" ? detail.message : "";
   if (/not configured|missing/i.test(message)) return "CONFIG";
   if (/jwt|api key|unauthorized|forbidden|permission/i.test(message)) return "AUTH";
   if (/relation|column|schema|cache|query/i.test(message)) return "SCHEMA";
