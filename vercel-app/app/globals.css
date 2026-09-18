@@ -191,9 +191,9 @@ body {
   .quote-dialog-print, .quote-dialog-print * { visibility: visible !important; }
   .pick-list-print, .pick-list-print *, .invoice-print, .invoice-print * { visibility: visible !important; }
   .pick-list-print, .invoice-print { position: absolute !important; inset: 0 !important; width: 100% !important; min-height: 0 !important; overflow: visible !important; background: white !important; }
-  .pick-list-print section { break-before: auto !important; page-break-before: auto !important; }
+  .pick-list-print { page: picklist; }\n  .pick-list-print section { break-before: auto !important; page-break-before: auto !important; }
   .quote-dialog-print { position: static !important; inset: auto !important; display: block !important; width: auto !important; max-width: none !important; max-height: none !important; overflow: visible !important; transform: none !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; background: white !important; box-shadow: none !important; }
   .quote-print-sheet { position: static !important; inset: auto !important; width: auto !important; min-height: 0 !important; overflow: visible !important; background: white !important; color: #172033 !important; padding: 0 !important; box-shadow: none !important; }
   .no-print { display: none !important; }
-  @page { size: A4; margin: 14mm; }
+  @page { size: A4; margin: 14mm; }\n  @page picklist { size: A4 landscape; margin: 10mm; }
 }
