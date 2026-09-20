@@ -155,7 +155,7 @@ export const quoteActivities = sqliteTable("quote_activities", {
   quoteId: integer("quote_id").notNull().references(() => quotes.id),
   action: text("action").notNull(),
   detail: text("detail").notNull().default(""),
-  actor: text("actor").notNull().default("QuoteFlow"),
+  actor: text("actor").notNull().default("RobeFlow"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -186,7 +186,7 @@ export const paymentTransactions = sqliteTable("payment_transactions", {
 
 export const companySettings = sqliteTable("company_settings", {
   id: integer("id").primaryKey(),
-  companyName: text("company_name").notNull().default("QuoteFlow Wardrobes"),
+  companyName: text("company_name").notNull().default("RobeFlow Wardrobes"),
   subtitle: text("subtitle").notNull().default("Custom wardrobe solutions"),
   gstNumber: text("gst_number").notNull().default(""),
   phone: text("phone").notNull().default(""),
@@ -198,5 +198,5 @@ export const companySettings = sqliteTable("company_settings", {
   terms: text("terms").notNull().default("Prices are in New Zealand dollars and include GST. This quotation remains valid until the date shown above."),
   warranty: text("warranty").notNull().default(""),
   installationExclusions: text("installation_exclusions").notNull().default(""),
-  emailSignature: text("email_signature").notNull().default("Kind regards\nQuoteFlow Wardrobes"),
+  emailSignature: text("email_signature").notNull().default("Kind regards\nRobeFlow Wardrobes"),
 });
