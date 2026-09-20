@@ -25,7 +25,7 @@ export default function CustomerIntakePage(){
  <Field label="Measurements, ideas or other information" wide><textarea name="notes" rows={4} className="rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Approximate sizes, storage needs, number of drawers, door preferences…"/></Field>
  </div></section>
  <section className="p-5 sm:p-7"><div className="rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 p-5"><div className="flex gap-3"><FileUp className="mt-0.5 size-5 text-emerald-700"/><div className="min-w-0"><Label htmlFor="plans" className="text-base font-semibold">Attach plans or photos</Label><p className="mt-1 text-sm text-slate-600">PDFs, drawings, floor plans or photos. Up to 15 MB per file.</p><Input id="plans" name="plans" type="file" multiple accept=".pdf,.dwg,.dxf,image/*" className="mt-4 bg-white"/></div></div></div>
- <p className="mt-4 text-xs leading-5 text-slate-500">By submitting this form, you agree that Simply Wardrobes may contact you about this enquiry.</p>
+ <p className="mt-4 text-xs leading-5 text-slate-500">By submitting this form, you agree that RobeFlow Wardrobes may contact you about this enquiry.</p>
  <Button className="mt-5 w-full" size="lg" disabled={sending}>{sending?"Sending your details…":"Send quotation enquiry"}</Button></section>
  </form></div></main>
 }
