@@ -1,62 +1,10 @@
-/**
- * Public demo catalogue.
- *
- * Production component quantities, supplier SKUs, and costs are intentionally
- * excluded from this portfolio repository. Replace these fixtures with data
- * owned by your organisation before using the application in production.
- */
-export type PickPart = { name: string; sku?: string; qty: number; unitCost: number };
+export type PickPart={name:string;sku?:string;qty:number;unitCost:number;group?:"I-Robe components"|"I-Robe hardware"|"Accessories / other"};
+export const IROBE_COMPONENTS=["2.4m Top Support","2.4m Back Support","1800 Side","1200 Side","1200 Shelf","550 Shelf","400 Shelf","1200 Hanging Bar","550 Hanging Bar","400 Hanging Bar","Drawers (400)","Drawers (550)","Starter Ends*"] as const;
 
-const demoProducts: Record<string, PickPart[]> = {
-  "I Robe 1": [
-    { name: "Demo top panel", sku: "DEMO-PANEL-TOP", qty: 1, unitCost: 0 },
-    { name: "Demo side panel", sku: "DEMO-PANEL-SIDE", qty: 2, unitCost: 0 },
-    { name: "Demo hanging rail", sku: "DEMO-RAIL", qty: 1, unitCost: 0 },
-  ],
-  "I Robe 3": [
-    { name: "Demo top panel", sku: "DEMO-PANEL-TOP", qty: 1, unitCost: 0 },
-    { name: "Demo side panel", sku: "DEMO-PANEL-SIDE", qty: 2, unitCost: 0 },
-    { name: "Demo shelf", sku: "DEMO-SHELF", qty: 4, unitCost: 0 },
-    { name: "Demo hanging rail", sku: "DEMO-RAIL", qty: 2, unitCost: 0 },
-  ],
-  "I Robe 5": [
-    { name: "Demo top panel", sku: "DEMO-PANEL-TOP", qty: 1, unitCost: 0 },
-    { name: "Demo side panel", sku: "DEMO-PANEL-SIDE", qty: 2, unitCost: 0 },
-    { name: "Demo shelf", sku: "DEMO-SHELF", qty: 5, unitCost: 0 },
-    { name: "Demo drawer set", sku: "DEMO-DRAWERS", qty: 1, unitCost: 0 },
-    { name: "Demo hanging rail", sku: "DEMO-RAIL", qty: 2, unitCost: 0 },
-  ],
-};
-
-export function iRobeParts(name: string, multiplier = 1): PickPart[] {
-  return (demoProducts[name] ?? []).map((part) => ({
-    ...part,
-    qty: part.qty * multiplier,
-  }));
-}
-
-const demoAccessories: Record<string, PickPart> = {
-  "Pull Out Shoe Rack": {
-    name: "Demo pull-out shoe rack",
-    sku: "DEMO-SHOE-RACK",
-    qty: 1,
-    unitCost: 0,
-  },
-  "Pull Out Mirror (Silver)": {
-    name: "Demo pull-out mirror — silver",
-    sku: "DEMO-MIRROR-SILVER",
-    qty: 1,
-    unitCost: 0,
-  },
-  "Pull Out Mirror (Black)": {
-    name: "Demo pull-out mirror — black",
-    sku: "DEMO-MIRROR-BLACK",
-    qty: 1,
-    unitCost: 0,
-  },
-};
-
-export function accessoryParts(name: string, multiplier = 1): PickPart[] {
-  const part = demoAccessories[name];
-  return part ? [{ ...part, qty: part.qty * multiplier }] : [];
-}
+// Component recipes transcribed from the supplied V10 pricing/specification workbook.
+const recipes:Record<string,number[]>={"I Robe 1":[0.5,0.5,0,2,0,0,0,2,0,0,0,0,0],"I Robe 1A":[1,1,0,3,1,0,0,3,0,0,0,0,0],"I Robe 2":[1,1,0,3,0,1,0,2,1,0,0,0,0],"I Robe 2A":[1,1,0,3,0,0,1,2,0,1,0,0,0],"I Robe 3":[1,1,2,1,0,6,0,2,0,0,0,0,0],"I Robe 3A":[1,1,2,1,0,0,6,2,0,0,0,0,0],"I Robe 3B":[1,1,2,1,0,4,0,2,0,0,0,1,0],"I Robe 3B 6Drw":[1,1,2,1,0,2,0,2,0,0,0,2,0],"I Robe 3C":[1,1,2,1,0,0,4,2,0,0,1,0,0],"I Robe 3C 6 Drw":[1,1,2,1,0,0,2,2,0,0,2,0,0],"I Robe 4":[1,1,2,2,0,7,0,2,1,0,0,0,0],"I Robe 4A":[1,1,2,2,0,6,1,2,0,1,0,0,0],"I Robe 4B":[1,1,2,2,0,0,7,2,0,1,0,0,0],"I Robe 4C":[1,1,2,2,0,1,6,2,1,0,0,0,0],"I Robe 5":[1,1,2,2,0,5,0,2,1,0,0,1,0],"I Robe 5 6 Drw":[1,1,2,2,0,3,0,2,1,0,0,2,0],"I Robe 5A":[1,1,2,2,0,4,1,2,0,1,0,1,0],"I Robe 5A 6 Drw":[1,1,2,2,0,2,1,2,0,1,0,2,0],"I Robe 5B":[1,1,2,2,0,0,5,2,0,1,1,0,0],"I Robe 5B 6 Drw":[1,1,2,2,0,0,3,2,0,1,2,0,0],"I Robe 5C":[1,1,2,2,0,1,4,2,1,0,1,0,0],"I Robe 5C 6 Drw":[1,1,2,2,0,1,2,2,1,0,2,0,0],"I Robe 6":[1.5,1.5,4,2,0,12,0,2,2,0,0,1,0],"I Robe 6A":[1.5,1.5,4,2,0,10,0,2,2,0,0,2,0],"I Robe 6B":[1.5,1.5,4,2,0,12,2,2,0,2,0,0,0],"I Robe 6C":[1.5,1.5,4,2,0,2,8,2,2,0,2,0,0],"I Robe 6D":[1.5,1.5,4,2,0,14,0,2,2,0,0,0,0],"I Robe 7":[1,1,4,0,0,12,0,2,0,0,0,0,0],"I Robe 7A":[1,1,4,0,0,10,0,2,0,0,0,1,0],"I Robe 7A 6Drw":[1,1,4,0,0,8,0,2,0,0,0,2,0],"I Robe 7B":[1,1,4,0,0,8,0,2,0,0,0,2,0],"I Robe 8":[1,1,4,0,0,4,6,2,0,0,0,1,0],"I Robe 8A 6 Drws":[1,1,4,0,0,2,6,2,0,0,0,2,0],"I Robe 8B":[1,1,4,0,0,0,12,2,0,0,0,0,0],"I Robe 8C":[1,1,4,0,0,0,10,2,0,0,1,0,0],"I Robe Flexi 450mm 6 Shelf":[1,1,2,1,0,0,6,3,0,0,0,0,1],"I Robe Flexi 600mm 6 Shelf":[1,1,2,1,0,6,0,3,0,0,0,0,1],"I Robe Flexi 450mm 3 Drawer":[1,1,2,1,0,0,4,3,0,0,1,0,1],"I Robe Flexi 600mm 3 Drawer":[1,1,2,1,0,4,0,3,0,0,0,1,1],"I Robe Flexi 450mm 6 Drawer":[1,1,2,1,0,0,2,3,0,0,2,0,1],"I Robe Flexi 600mm 6 Drawer":[1,1,2,1,0,2,0,3,0,0,0,2,1]};
+const norm=(value:string)=>value.replace(/\s+/g," ").trim().toLowerCase();
+function hardware(values:number[],multiplier:number):PickPart[]{const sides=(values[2]+values[3]+values[12])*multiplier,shelves=(values[4]+values[5]+values[6])*multiplier,bars=(values[7]+values[8]+values[9])*multiplier,drawers=(values[10]+values[11])*multiplier,backs=values[1]*multiplier;const rows:[string,number][]=[["Side panel screws",sides*2],["Shelf cams",shelves*4],["Shelf screws",shelves*4],["Small screws",bars*4],["8G x 32MM screws",drawers*12],["8G x 50MM screws",(backs*8)+(sides*2)+(drawers*4)],["L-Brackets",sides],["Cover caps",backs*8],["Hanging bar brackets",bars*2],["Instructions",multiplier]];return rows.filter(([,qty])=>qty>0).map(([name,qty],index)=>({name,sku:`IR-HW-${index+1}`,qty,unitCost:0,group:"I-Robe hardware"}))}
+export function iRobeParts(name:string,multiplier=1):PickPart[]{const values=Object.entries(recipes).find(([key])=>norm(key)===norm(name))?.[1];if(!values)return[];return [...values.map((qty,index)=>({name:IROBE_COMPONENTS[index],sku:`IR-COMP-${index+1}`,qty:qty*multiplier,unitCost:0,group:"I-Robe components" as const})).filter(part=>part.qty>0),...hardware(values,multiplier)]}
+const accessories:Record<string,string>={"Wall Mounted Shoe Rack x 10":"ACC-SHOE-WALL-10","Pull Out Shoe Rack":"ACC-SHOE-PULL","Wall Mounted Fold Down Ironing Board":"ACC-IRON-FOLD","Wall Mounted Swivel 180 Rotate Iron Board":"ACC-IRON-SWIVEL","Pull Out Ironing Board":"ACC-IRON-PULL","Pull Out Mirror (Silver)":"ACC-MIRROR-SILVER","Pull Out Mirror (Black)":"ACC-MIRROR-BLACK"};
+export function accessoryParts(name:string,multiplier=1):PickPart[]{const sku=accessories[name];return sku?[{name,sku,qty:multiplier,unitCost:0,group:"Accessories / other"}]:[]}
