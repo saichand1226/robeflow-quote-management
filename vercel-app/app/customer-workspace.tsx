@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Building2, CheckCircle2, ChevronDown, DollarSign, Download, ExternalLink, Mail, MapPin, PackageCheck, Paperclip, Phone, Plus, QrCode, ReceiptText, Search, Trash2, UserRound } from "lucide-react";
+import { Building2, CheckCircle2, ChevronDown, DollarSign, Download, ExternalLink, Mail, MapPin, PackageCheck, Paperclip, Pencil, Phone, Plus, QrCode, ReceiptText, Search, Trash2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -460,7 +460,8 @@ export function InvoicesPanel() {
     [saving, setSaving] = useState<number | null>(null),
     [search, setSearch] = useState(""),
     [statusTab, setStatusTab] = useState("All"),
-    [expanded, setExpanded] = useState<number | null>(null);
+    [expanded, setExpanded] = useState<number | null>(null),
+    [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   async function load() {
     const d = await fetch("/api/invoices").then((r) => r.json()),
       rows = d.invoices ?? [];
@@ -539,8 +540,25 @@ export function InvoicesPanel() {
     event.preventDefault();
     setSaving(quote.id);
     const form = event.currentTarget,
-      data = Object.fromEntries(new FormData(form)),
-      response = await fetch("/api/payments", {
+      data = Object.fromEntries(new FormData(form));
+    if (data.method === "Account") {
+      const response = await fetch("/api/invoices", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: quote.id, invoiceNumber: numbers[quote.id] ?? "", invoiceStatus: "Account", paymentNote: notes[quote.id] ?? "" }),
+        }),
+        result = await response.json();
+      setSaving(null);
+      if (!response.ok) {
+        window.alert(result.error || "The account status could not be saved.");
+        return;
+      }
+      form.reset();
+      setPaymentModes((current) => ({ ...current, [quote.id]: "Bank transfer" }));
+      await load();
+      return;
+    }
+    const response = await fetch("/api/payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -556,6 +574,25 @@ export function InvoicesPanel() {
       return;
     }
     form.reset();
+    setPaymentModes((current) => ({ ...current, [quote.id]: "Bank transfer" }));
+    await load();
+  }
+  async function editPayment(event: React.FormEvent<HTMLFormElement>, payment: Payment) {
+    event.preventDefault();
+    setSaving(payment.id);
+    const data = Object.fromEntries(new FormData(event.currentTarget)),
+      response = await fetch("/api/payments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...data, id: payment.id }),
+      }),
+      result = await response.json();
+    setSaving(null);
+    if (!response.ok) {
+      window.alert(result.error || "Payment could not be updated.");
+      return;
+    }
+    setEditingPayment(null);
     await load();
   }
   async function recordQuickPayment(quote: InvoiceQuote) {
@@ -743,7 +780,7 @@ export function InvoicesPanel() {
                   {sent ? (
                     <div className="grid gap-2">
                       <Label>Payment status</Label>
-                      <div className="flex h-10 items-center justify-between gap-2 rounded-md border bg-white px-3 text-sm font-semibold"><span>{status}</span>{status!=="Account"&&<Button type="button" size="sm" variant="ghost" disabled={saving===quote.id} onClick={()=>updateInvoice(quote,"Account")}>Set Account</Button>}</div>
+                      <div className="flex h-10 items-center rounded-md border bg-white px-3 text-sm font-semibold">{status}</div>
                     </div>
                   ) : (
                     <div />
@@ -787,7 +824,17 @@ export function InvoicesPanel() {
                     </summary>
                     <div className="border-t p-4">
                       <div className="space-y-2">
-                        {quote.payments?.map((payment) => (
+                        {quote.payments?.map((payment) => editingPayment?.id === payment.id ? (
+                          <form key={payment.id} onSubmit={(event) => editPayment(event, payment)} className="grid gap-3 rounded-lg border border-emerald-300 bg-white p-3 md:grid-cols-[9rem_10rem_10rem_1fr_auto]">
+                            <Input name="amount" required type="number" min="0.01" step="0.01" defaultValue={payment.amount} aria-label="Payment amount" />
+                            <Input name="paymentDate" required type="date" defaultValue={payment.paymentDate} aria-label="Payment date" />
+                            <select name="method" defaultValue={payment.method} className="h-10 rounded-md border bg-white px-3 text-sm" aria-label="Payment method">
+                              <option>Bank transfer</option><option>EFTPOS</option><option>Credit card</option><option>Cash</option><option>Other</option>
+                            </select>
+                            <Input name="reference" defaultValue={payment.reference} placeholder="Reference / notes" />
+                            <div className="flex gap-2"><Button disabled={saving === payment.id}>Save</Button><Button type="button" variant="outline" onClick={() => setEditingPayment(null)}>Cancel</Button></div>
+                          </form>
+                        ) : (
                           <div key={payment.id} className="flex flex-col justify-between gap-2 rounded-lg border bg-white p-3 sm:flex-row sm:items-center">
                             <div>
                               <p className="font-semibold">
@@ -799,28 +846,27 @@ export function InvoicesPanel() {
                                 {payment.notes ? ` · ${payment.notes}` : ""}
                               </p>
                             </div>
-                            <Button type="button" variant="ghost" size="icon" className="text-red-600" onClick={() => removePayment(payment)} aria-label="Delete payment">
-                              <Trash2 className="size-4" />
-                            </Button>
+                            <div className="flex gap-1"><Button type="button" variant="ghost" size="icon" onClick={() => setEditingPayment(payment)} aria-label="Edit payment"><Pencil className="size-4" /></Button><Button type="button" variant="ghost" size="icon" className="text-red-600" onClick={() => removePayment(payment)} aria-label="Delete payment"><Trash2 className="size-4" /></Button></div>
                           </div>
                         ))}
                         {!quote.payments?.length && <p className="text-sm text-slate-500">No payments recorded yet.</p>}
                       </div>
                       {(quote.totalPaid || 0) < quote.amount && (
                         <form onSubmit={(e) => recordPayment(e, quote)} className="mt-4 grid gap-3 border-t pt-4 md:grid-cols-[9rem_10rem_10rem_1fr_auto]">
-                          <Input name="amount" required type="number" min="0.01" max={Math.max(0, quote.amount - (quote.totalPaid || 0))} step="0.01" placeholder="Amount" />
+                          <Input name="amount" required={(paymentModes[quote.id] || "Bank transfer") !== "Account"} disabled={(paymentModes[quote.id] || "Bank transfer") === "Account"} type="number" min="0.01" max={Math.max(0, quote.amount - (quote.totalPaid || 0))} step="0.01" placeholder={(paymentModes[quote.id] || "Bank transfer") === "Account" ? "Not required" : "Amount"} />
                           <Input name="paymentDate" required type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
-                          <select name="method" className="h-10 rounded-md border bg-white px-3 text-sm">
+                          <select name="method" value={paymentModes[quote.id] || "Bank transfer"} onChange={(event) => setPaymentModes((current) => ({ ...current, [quote.id]: event.target.value }))} className="h-10 rounded-md border bg-white px-3 text-sm">
                             <option>Bank transfer</option>
                             <option>EFTPOS</option>
                             <option>Credit card</option>
                             <option>Cash</option>
                             <option>Other</option>
+                            <option>Account</option>
                           </select>
                           <Input name="reference" placeholder="Reference / notes" />
                           <Button disabled={saving === quote.id}>
                             <Plus className="size-4" />
-                            Add payment
+                            {(paymentModes[quote.id] || "Bank transfer") === "Account" ? "Set Account" : "Add payment"}
                           </Button>
                         </form>
                       )}
