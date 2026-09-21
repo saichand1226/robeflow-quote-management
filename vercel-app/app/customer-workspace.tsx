@@ -459,6 +459,7 @@ export function InvoicesPanel() {
     [paymentAmounts, setPaymentAmounts] = useState<Record<number, string>>({}),
     [saving, setSaving] = useState<number | null>(null),
     [search, setSearch] = useState(""),
+    [statusTab, setStatusTab] = useState("All"),
     [expanded, setExpanded] = useState<number | null>(null);
   async function load() {
     const d = await fetch("/api/invoices").then((r) => r.json()),
@@ -470,7 +471,7 @@ export function InvoicesPanel() {
   useEffect(() => {
     load();
   }, []);
-  const filtered = useMemo(() => invoices.filter((q) => `${q.quoteNumber} ${q.customerName} ${q.companyName} ${q.project} ${q.invoiceNumber} ${q.salespersonName} ${q.invoiceStatus} ${q.paymentNote}`.toLowerCase().includes(search.toLowerCase())), [invoices, search]);
+  const filtered = useMemo(() => invoices.filter((q) => (statusTab==="All"||q.invoiceStatus===statusTab)&&`${q.quoteNumber} ${q.customerName} ${q.companyName} ${q.project} ${q.invoiceNumber} ${q.salespersonName} ${q.invoiceStatus} ${q.paymentNote}`.toLowerCase().includes(search.toLowerCase())), [invoices, search, statusTab]);
   async function updateInvoice(quote: InvoiceQuote, status: string) {
     setSaving(quote.id);
     try {
@@ -490,7 +491,6 @@ export function InvoicesPanel() {
         return;
       }
       await load();
-      if (status === "Waiting for payment") window.alert(`${quote.quoteNumber} marked as sent and waiting for payment.`);
     } finally {
       setSaving(null);
     }
@@ -512,7 +512,7 @@ export function InvoicesPanel() {
           body: JSON.stringify({
             id: quote.id,
             invoiceNumber: numbers[quote.id],
-            invoiceStatus: "To invoice",
+            invoiceStatus: "To be Invoiced",
             paymentNote: notes[quote.id] ?? "",
           }),
         }),
@@ -574,7 +574,7 @@ export function InvoicesPanel() {
           amount,
           paymentDate: new Date().toISOString().slice(0, 10),
           method: "Bank transfer",
-          reference: mode === "Paid 50%" ? "50% deposit" : "Part payment",
+      reference: mode === "50% Paid" ? "50% deposit" : "Part payment",
           recordedBy: "Accounts team",
         }),
       }),
@@ -619,9 +619,7 @@ export function InvoicesPanel() {
       setSaving(null);
     }
   }
-  const pending = invoices.filter((q) => !q.invoiceStatus || q.invoiceStatus === "To invoice");
-  const waiting = invoices.filter((q) => q.invoiceStatus === "Waiting for payment" || q.invoiceStatus === "Invoice sent");
-  const invoiced = invoices.filter((q) => q.invoiceStatus && q.invoiceStatus !== "To invoice"),
+  const invoiced = invoices.filter((q) => q.invoiceStatus && q.invoiceStatus !== "To be Invoiced"),
     totalInvoiced = invoiced.reduce((sum, q) => sum + q.amount, 0),
     totalPaid = invoices.reduce((sum, q) => sum + Number(q.totalPaid || 0), 0);
   return (
@@ -643,10 +641,11 @@ export function InvoicesPanel() {
             <Input className="pl-9 sm:w-72" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search invoices or payment status…" />
           </div>
         </div>
+        <div className="flex gap-2 overflow-x-auto border-b px-5 py-3">{["All","To be Invoiced","Awaiting Deposit","50% Paid","Part Paid","Account","Paid in Full"].map(name=><Button key={name} variant={statusTab===name?"default":"outline"} size="sm" onClick={()=>setStatusTab(name)}>{name}<span className="rounded-full bg-white/20 px-1.5 text-xs">{name==="All"?invoices.length:invoices.filter(q=>q.invoiceStatus===name).length}</span></Button>)}</div>
         <div className="grid gap-4 p-5">
           {filtered.map((quote) => {
-            const status = quote.invoiceStatus === "Invoice sent" ? "Waiting for payment" : quote.invoiceStatus || "To invoice";
-            const sent = status !== "To invoice",
+            const status = quote.invoiceStatus || "To be Invoiced";
+            const sent = status !== "To be Invoiced",
               open = expanded === quote.id;
             return (
               <article key={quote.id} className="rounded-2xl border p-5">
@@ -654,7 +653,7 @@ export function InvoicesPanel() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-bold text-emerald-700">{quote.quoteNumber}</span>
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${status === "Paid in Full" ? "bg-emerald-100 text-emerald-800" : status === "To invoice" ? "bg-amber-100 text-amber-800" : "bg-violet-100 text-violet-800"}`}>{status === "Manual message" ? quote.paymentNote || "Manual message" : status}</span>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${status === "Paid in Full" ? "bg-emerald-100 text-emerald-800" : status === "To be Invoiced" ? "bg-amber-100 text-amber-800" : "bg-violet-100 text-violet-800"}`}>{status}</span>
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold">{quote.serviceType || "Pick Up"}</span>
                       {quote.accountsApproved && <span className="rounded-full bg-cyan-100 px-2.5 py-1 text-xs font-semibold text-cyan-800">Approved for dispatch</span>}
                     </div>
@@ -744,38 +743,7 @@ export function InvoicesPanel() {
                   {sent ? (
                     <div className="grid gap-2">
                       <Label>Payment status</Label>
-                      <select
-                        value={paymentModes[quote.id] || status}
-                        disabled={saving === quote.id}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (value === "Part paid" || value === "Paid 50%") {
-                            const suggested = value === "Paid 50%" ? Math.max(0, quote.amount * 0.5 - (quote.totalPaid || 0)) : Math.max(0, quote.amount - (quote.totalPaid || 0));
-                            setPaymentModes((current) => ({
-                              ...current,
-                              [quote.id]: value,
-                            }));
-                            setPaymentAmounts((current) => ({
-                              ...current,
-                              [quote.id]: suggested.toFixed(2),
-                            }));
-                          } else {
-                            setPaymentModes((current) => ({
-                              ...current,
-                              [quote.id]: "",
-                            }));
-                            updateInvoice(quote, value);
-                          }
-                        }}
-                        className="h-10 rounded-md border bg-white px-3 text-sm font-semibold"
-                      >
-                        <option>Waiting for payment</option>
-                        <option>Part paid</option>
-                        <option>Paid 50%</option>
-                        <option>Paid in Full</option>
-                        <option>Account</option>
-                        <option>Manual message</option>
-                      </select>
+                      <div className="flex h-10 items-center justify-between gap-2 rounded-md border bg-white px-3 text-sm font-semibold"><span>{status}</span>{status!=="Account"&&<Button type="button" size="sm" variant="ghost" disabled={saving===quote.id} onClick={()=>updateInvoice(quote,"Account")}>Set Account</Button>}</div>
                     </div>
                   ) : (
                     <div />
@@ -786,7 +754,7 @@ export function InvoicesPanel() {
                         <ExternalLink className="size-4" />
                         View invoice
                       </a>
-                      <Button variant="outline" disabled={saving === quote.id} onClick={() => updateInvoice(quote, "To invoice")}>
+                      <Button variant="outline" disabled={saving === quote.id} onClick={() => updateInvoice(quote, "To be Invoiced")}>
                         Move back
                       </Button>
                     </div>
@@ -797,69 +765,13 @@ export function InvoicesPanel() {
                     </Button>
                   )}
                 </div>
-                {(paymentModes[quote.id] === "Part paid" || paymentModes[quote.id] === "Paid 50%" || status === "Part paid" || status === "Paid 50%") && (
-                  <div className="mt-3 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-end">
-                    <div className="grid flex-1 gap-2">
-                      <Label>Amount received {paymentModes[quote.id] === "Paid 50%" || status === "Paid 50%" ? "for 50% deposit" : ""}</Label>
-                      <Input
-                        type="number"
-                        min="0.01"
-                        max={Math.max(0, quote.amount - (quote.totalPaid || 0))}
-                        step="0.01"
-                        value={paymentAmounts[quote.id] ?? (status === "Paid 50%" ? Math.max(0, quote.amount * 0.5 - (quote.totalPaid || 0)).toFixed(2) : "")}
-                        onChange={(e) =>
-                          setPaymentAmounts((current) => ({
-                            ...current,
-                            [quote.id]: e.target.value,
-                          }))
-                        }
-                        placeholder="Enter amount paid"
-                      />
-                    </div>
-                    <Button disabled={saving === quote.id} onClick={() => recordQuickPayment(quote)}>
-                      {saving === quote.id ? "Recording…" : "Record payment"}
-                    </Button>
-                    {paymentModes[quote.id] && (
-                      <Button
-                        variant="ghost"
-                        onClick={() =>
-                          setPaymentModes((current) => ({
-                            ...current,
-                            [quote.id]: "",
-                          }))
-                        }
-                      >
-                        Cancel
-                      </Button>
-                    )}
-                  </div>
-                )}
-                {sent && (
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                    <Input
-                      value={notes[quote.id] ?? ""}
-                      onChange={(e) =>
-                        setNotes((current) => ({
-                          ...current,
-                          [quote.id]: e.target.value,
-                        }))
-                      }
-                      placeholder="Optional manual payment message"
-                    />
-                    <Button variant="outline" disabled={saving === quote.id || !(notes[quote.id] ?? "").trim()} onClick={() => updateInvoice(quote, "Manual message")}>
-                      Use manual message
-                    </Button>
-                  </div>
-                )}
                 {quote.invoiceSentAt && (
                   <div className="mt-3 flex flex-col gap-3 rounded-xl border border-cyan-200 bg-cyan-50 p-3 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-sm text-cyan-900">Invoice sent {new Date(quote.invoiceSentAt).toLocaleString("en-NZ")}</p>
-                    {quote.serviceType !== "Installation" && (
-                      <Button variant={quote.accountsApproved ? "outline" : "default"} disabled={saving === quote.id} onClick={() => approveForDispatch(quote)}>
-                        <PackageCheck className="size-4" />
-                        {quote.accountsApproved ? "Remove dispatch approval" : "Approve for dispatch"}
-                      </Button>
-                    )}
+                    <Button variant={quote.accountsApproved ? "outline" : "default"} disabled={saving === quote.id} onClick={() => approveForDispatch(quote)}>
+                      <PackageCheck className="size-4" />
+                      {quote.accountsApproved ? "Remove from Dispatch" : "Send to Dispatch"}
+                    </Button>
                   </div>
                 )}
                 {sent && (

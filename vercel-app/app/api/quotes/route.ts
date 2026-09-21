@@ -1,6 +1,6 @@
 import { camel, requireStaff, snake } from "@/lib/api-auth";
 
-export async function GET(){const auth=await requireStaff();if(auth.error)return auth.error;const{data,error}=await auth.supabase.from("quotes").select("*").eq("archived",false).order("created_at",{ascending:false});return error?Response.json({error:error.message},{status:500}):Response.json({quotes:(data??[]).map(camel)})}
+export async function GET(){const auth=await requireStaff();if(auth.error)return auth.error;const{data,error}=await auth.supabase.from("quotes").select("*").eq("archived",false).order("created_at",{ascending:false});return error?Response.json({error:error.message},{status:500}):Response.json({quotes:(data??[]).map(row=>{const quote=camel(row),status=quote.invoiceStatus==="To invoice"?"To be Invoiced":quote.invoiceStatus==="Waiting for payment"?"Awaiting Deposit":quote.invoiceStatus==="Part paid"?"Part Paid":quote.invoiceStatus==="Paid 50%"?"50% Paid":quote.invoiceStatus;return {...quote,invoiceStatus:status}})})}
 
 export async function POST(request:Request){
  const auth=await requireStaff(["Admin","Sales","Staff"]);if(auth.error)return auth.error;const b=await request.json();

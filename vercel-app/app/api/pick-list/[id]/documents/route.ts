@@ -8,6 +8,8 @@ async function list(auth:any,id:number){const[{data,error},{data:activities}]=aw
 
 export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){const auth=await requireStaff();if(auth.error)return auth.error;return list(auth,Number((await params).id));}
 
+export async function PATCH(_:Request,{params}:{params:Promise<{id:string}>}){const auth=await requireStaff(["Admin","Sales","Accounts","Operations","Staff"]);if(auth.error)return auth.error;const id=Number((await params).id),{data:file}=await auth.supabase.from("quote_attachments").select("id").eq("quote_id",id).like("object_key",`pick-lists/${id}/%`).limit(1).maybeSingle();if(!file)return Response.json({error:"Upload the Excel pick list first."},{status:400});await auth.supabase.from("quote_activities").insert({quote_id:id,action:"Pick list opened",detail:`Opened current workbook ${file.id}`,actor:auth.profile.full_name||"RobeFlow"});return Response.json({success:true})}
+
 export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){
  const auth=await requireStaff(["Admin","Sales","Operations","Staff"]);if(auth.error)return auth.error;
  const id=Number((await params).id);
