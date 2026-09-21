@@ -432,7 +432,8 @@ function QuoteRecord({quote,open,setOpen,onUpdated,onDuplicated,settings}:{quote
 <span>{money(total)}</span>
 </div>
 </div>
- <div className="no-print mt-7 rounded-xl border bg-slate-50 p-4">
+ {working.id>0&&<div className="no-print mt-7 flex flex-col justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 sm:flex-row sm:items-center"><div><h3 className="flex items-center gap-2 font-semibold"><File className="size-4 text-emerald-700"/>Excel pick list</h3><p className="mt-1 text-xs text-slate-600">Create the customer-filled workbook, complete custom designs in Excel, and upload the finished file to this quote.</p></div><a href={`/pick-list/${working.id}`} target="_blank" className="inline-flex h-10 shrink-0 items-center justify-center rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white">Open Excel pick list</a></div>}
+ <div className="no-print mt-5 rounded-xl border bg-slate-50 p-4">
 <div className="flex flex-wrap items-center justify-between gap-3">
 <div>
 <h3 className="flex items-center gap-2 font-semibold">
