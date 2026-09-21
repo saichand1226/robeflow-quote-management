@@ -24,14 +24,21 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     }
 
     const pdf = await createQuotePdf(quote as never);
+    const customerAttachments = [{ filename: `${quote.quoteNumber}.pdf`, content: Buffer.from(pdf).toString("base64") }];
+    for (const attachment of quote.attachments || []) {
+      if (!attachment.objectKey?.startsWith(`quotes/${id}/`)) continue;
+      const { data, error } = await auth.supabase.storage.from("robeflow-files").download(attachment.objectKey);
+      if (error || !data) throw new Error(`The design attachment ${attachment.fileName} could not be prepared for email.`);
+      customerAttachments.push({ filename: attachment.fileName, content: Buffer.from(await data.arrayBuffer()).toString("base64") });
+    }
     const baseUrl = appUrl().replace(/\/$/, "");
     const url = `${baseUrl}/quote-response/${encodeURIComponent(responseToken)}`;
     const mail = await sendEmail({
       to: quote.email,
       subject: `Quotation ${quote.quoteNumber} for ${quote.project}`,
       idempotencyKey: `quote-${id}-r${quote.revision}-${Date.now().toString().slice(0, -5)}`,
-      attachments: [{ filename: `${quote.quoteNumber}.pdf`, content: Buffer.from(pdf).toString("base64") }],
-      html: `<!doctype html><html lang="en" dir="ltr"><head><title>Quotation ${safe(quote.quoteNumber)}</title></head><body><div lang="en" dir="ltr" style="font-family:Arial,sans-serif;color:#172033;line-height:1.6"><h1 style="color:#047857">Your RobeFlow quotation</h1><p>Hi ${safe(quote.customerName)},</p><p>Your quotation for <strong>${safe(quote.project)}</strong> is attached as a PDF.</p><p><a href="${url}" style="display:inline-block;background:#047857;color:white;padding:12px 18px;text-decoration:none;border-radius:6px">View and respond to quote</a></p><p>You can review the quotation, add a purchase-order number or comment, and accept or decline it securely online.</p><p>Kind regards,<br><strong>RobeFlow Wardrobes</strong></p></div></body></html>`,
+      attachments: customerAttachments,
+      html: `<!doctype html><html lang="en" dir="ltr"><head><title>Quotation ${safe(quote.quoteNumber)}</title></head><body><div lang="en" dir="ltr" style="font-family:Arial,sans-serif;color:#172033;line-height:1.6"><h1 style="color:#047857">Your RobeFlow quotation</h1><p>Hi ${safe(quote.customerName)},</p><p>Your quotation for <strong>${safe(quote.project)}</strong> is attached as a PDF${customerAttachments.length>1?", together with the design files":""}.</p><p><a href="${url}" style="display:inline-block;background:#047857;color:white;padding:12px 18px;text-decoration:none;border-radius:6px">View and respond to quote</a></p><p>You can review the quotation, add a purchase-order number or comment, and accept or decline it securely online.</p><p>Kind regards,<br><strong>RobeFlow Wardrobes</strong></p></div></body></html>`,
       text: `Hi ${quote.customerName},\n\nYour quotation ${quote.quoteNumber} for ${quote.project} is attached.\nView and respond: ${url}\n\nKind regards,\nRobeFlow Wardrobes`,
     });
 
