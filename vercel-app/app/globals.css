@@ -239,7 +239,7 @@ body {
 .section-heading h2 { margin: 10px 0 12px; font-family: Georgia, serif; font-size: clamp(38px, 5vw, 58px); font-weight: 500; letter-spacing: -.045em; line-height: 1; }
 .section-heading p { color: #66736e; line-height: 1.7; }
 .storage-grid { display: grid; min-height: 450px; grid-template-columns: 1.25fr .8fr .8fr; gap: 14px; }
-.storage-tile { position: relative; overflow: hidden; border-radius: 26px; background-image: linear-gradient(180deg, transparent 40%, #061b16d9 100%), url('/images/robeflow-storage-hero.png'); background-repeat: no-repeat; box-shadow: inset 0 0 0 1px #ffffff2e; transition: transform .3s ease, box-shadow .3s ease; }
+.storage-tile { position: relative; overflow: hidden; border-radius: 26px; background-image: linear-gradient(180deg, transparent 35%, #061b16d9 100%), url('/images/robeflow-storage-hero.jpg'); background-repeat: no-repeat; box-shadow: inset 0 0 0 1px #ffffff2e; transition: transform .3s ease, box-shadow .3s ease; }
 .storage-tile:hover { transform: translateY(-7px); box-shadow: 0 22px 45px #1b332b26; }
 .storage-tile-one { background-size: auto 120%; background-position: 83% center; }
 .storage-tile-two { background-size: auto 115%; background-position: 5% center; }

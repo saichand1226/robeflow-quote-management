@@ -28,7 +28,7 @@ export default function Home() {
         <div className="landing-trust"><span><CheckCircle2/>Role-based access</span><span><CheckCircle2/>Excel pick lists</span><span><CheckCircle2/>Live job status</span></div>
       </div>
       <div className="landing-visual">
-        <img src="/images/robeflow-storage-hero.png" alt="Custom entry, pantry and wardrobe storage in a bright contemporary home"/>
+        <img src="/images/robeflow-storage-hero.jpg" alt="Custom entry, pantry and wardrobe storage in a bright contemporary home"/>
         <div className="visual-shade"/>
         <div className="visual-label"><span>Featured space</span><strong>Entry + pantry storage</strong><small>Designed, quoted and dispatched in one flow</small></div>
         <div className="floating-job"><span className="floating-icon"><PackageCheck/></span><div><small>Job Q-2026-1042</small><strong>Ready for dispatch</strong></div><span className="live-dot"/></div>
