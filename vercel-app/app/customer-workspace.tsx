@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { displayedJobNumber, suggestedInvoiceNumber } from "@/lib/job-reference";
 
 type Customer = {
   id: number;
@@ -472,13 +473,16 @@ export function InvoicesPanel() {
     const d = await fetch("/api/invoices").then((r) => r.json()),
       rows = d.invoices ?? [];
     setInvoices(rows);
-    setNumbers(Object.fromEntries(rows.map((q: InvoiceQuote) => [q.id, q.serviceType === "Installation" && q.jobStage === "Completed" && q.depositInvoiceSentAt && !q.balanceInvoiceSentAt ? q.balanceInvoiceNumber ?? "" : q.depositInvoiceNumber || q.invoiceNumber || ""])));
+    setNumbers(Object.fromEntries(rows.map((q: InvoiceQuote) => {
+      const balance = q.serviceType === "Installation" && q.jobStage === "Completed" && q.depositInvoiceSentAt && !q.balanceInvoiceSentAt;
+      return [q.id, balance ? q.balanceInvoiceNumber || suggestedInvoiceNumber(q, "balance") : q.depositInvoiceNumber || q.invoiceNumber || suggestedInvoiceNumber(q, q.serviceType === "Installation" ? "deposit" : "full")];
+    })));
     setNotes(Object.fromEntries(rows.map((q: InvoiceQuote) => [q.id, q.paymentNote ?? ""])));
   }
   useEffect(() => {
     load();
   }, []);
-  const filtered = useMemo(() => invoices.filter((q) => (statusTab==="All"||q.invoiceStatus===statusTab)&&`${q.quoteNumber} ${q.customerName} ${q.companyName} ${q.project} ${q.invoiceNumber} ${q.salespersonName} ${q.invoiceStatus} ${q.paymentNote}`.toLowerCase().includes(search.toLowerCase())), [invoices, search, statusTab]);
+  const filtered = useMemo(() => invoices.filter((q) => (statusTab==="All"||q.invoiceStatus===statusTab)&&`${q.quoteNumber} ${displayedJobNumber(q)} ${q.customerName} ${q.companyName} ${q.project} ${q.invoiceNumber} ${q.salespersonName} ${q.invoiceStatus} ${q.paymentNote}`.toLowerCase().includes(search.toLowerCase())), [invoices, search, statusTab]);
   async function updateInvoice(quote: InvoiceQuote, status: string) {
     setSaving(quote.id);
     try {
@@ -703,7 +707,7 @@ export function InvoicesPanel() {
                 <button type="button" onClick={() => setExpanded(open ? null : quote.id)} className="flex w-full flex-col gap-4 text-left lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-bold text-emerald-700">{quote.quoteNumber}</span>
+                      <span className="font-bold text-emerald-700">{displayedJobNumber(quote)}</span>
                       <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${status === "Paid in Full" ? "bg-emerald-100 text-emerald-800" : status === "To be Invoiced" ? "bg-amber-100 text-amber-800" : "bg-violet-100 text-violet-800"}`}>{status}</span>
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold">{quote.serviceType || "Pick Up"}</span>
                       {quote.accountsApproved && <span className="rounded-full bg-cyan-100 px-2.5 py-1 text-xs font-semibold text-cyan-800">Approved for dispatch</span>}
