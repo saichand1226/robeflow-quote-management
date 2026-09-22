@@ -28,9 +28,9 @@ export default function Home() {
         <div className="landing-trust"><span><CheckCircle2/>Role-based access</span><span><CheckCircle2/>Excel pick lists</span><span><CheckCircle2/>Live job status</span></div>
       </div>
       <div className="landing-visual">
-        <img src="/images/robeflow-storage-hero.jpg" alt="Custom entry, pantry and wardrobe storage in a bright contemporary home"/>
+        <img src="/images/storage-hero-v2.jpg" alt="Practical custom entry storage in a naturally lit contemporary home"/>
         <div className="visual-shade"/>
-        <div className="visual-label"><span>Featured space</span><strong>Entry + pantry storage</strong><small>Designed, quoted and dispatched in one flow</small></div>
+        <div className="visual-label"><span>Featured space</span><strong>Custom entry storage</strong><small>Designed, quoted and dispatched in one flow</small></div>
         <div className="floating-job"><span className="floating-icon"><PackageCheck/></span><div><small>Job Q-2026-1042</small><strong>Ready for dispatch</strong></div><span className="live-dot"/></div>
         <div className="floating-metric"><BarChart3/><div><small>Pipeline</small><strong>$31,985</strong></div></div>
       </div>
@@ -46,6 +46,6 @@ export default function Home() {
       <div className="workflow-route"><span><Ruler/>Measure & design</span><ArrowRight/><span><FileText/>Quote & approve</span><ArrowRight/><span><Boxes/>Pick & prepare</span><ArrowRight/><span><Truck/>Dispatch & complete</span></div>
     </section>
     <section className="landing-cta"><div><span>Ready when your team is</span><h2>Keep every storage job flowing.</h2></div><Link className="landing-primary light-button" href="/login">Enter RobeFlow <ArrowRight size={18}/></Link></section>
-    <footer className="landing-footer"><Link className="landing-brand" href="/"><span className="landing-mark">R</span><span>RobeFlow<small>Storage workflow</small></span></Link><p>Designed and developed by Saichand Muddasani.</p><a href="https://github.com/saichand1226/robeflow-quote-management" target="_blank" rel="noreferrer">View source code</a></footer>
+    <footer className="landing-footer"><Link className="landing-brand" href="/"><span className="landing-mark">R</span><span>RobeFlow<small>Storage workflow</small></span></Link><div><p>Designed and developed by Saichand Muddasani.</p><small>Storage imagery is conceptually generated for this portfolio project.</small></div><a href="https://github.com/saichand1226/robeflow-quote-management" target="_blank" rel="noreferrer">View source code</a></footer>
   </main>;
 }
