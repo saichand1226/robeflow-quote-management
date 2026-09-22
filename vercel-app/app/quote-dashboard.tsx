@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CustomersPanel, EnquiriesPanel, InvoicesPanel, TeamPanel } from "./customer-workspace";
 import StaffAccountsPanel from "./staff-accounts-panel";
 import JobBoard from "./job-board";
-import { ActionCentre, ArchivePanel, DispatchPanel, OperationsPanel, ProductsPanel, ReminderCentre, SalesReports, SettingsPanel } from "./operations-workspace";
+import { ActionCentre, ArchivePanel, ClosedJobsPanel, DispatchPanel, OperationsPanel, ProductsPanel, ReminderCentre, SalesReports, SettingsPanel } from "./operations-workspace";
 import { ACCESSORY_OPTIONS, BOARD_COLOURS, DOOR_CONFIGURATIONS, HARDWARE_COLOURS, IROBE_OPTIONS, MIRROR_OPTIONS } from "../lib/quote-options";
 type QuoteItem={id?:number;category:string;systemType:string;colour:string;designSelection?:string;hardwareColour?:string;doorConfiguration?:string;mirrorOption?:string;price:number|string;quantity?:number|string;unitPrice?:number|string;description?:string;sortOrder?:number};
 type Attachment={id:number;fileName:string;contentType:string;size:number;createdAt?:string};
@@ -18,7 +18,7 @@ type TeamMember={id:number;name:string;active:boolean};
 type Product={id:number;name:string;category:string;price:number;active:boolean};
 type CompanySettings={companyName:string;subtitle:string;gstNumber:string;phone:string;email:string;address:string;bankDetails:string;terms:string;warranty:string;installationExclusions:string;emailSignature:string};
 type RevisionSummary={id:number;quoteNumber:string;revision:number;amount:number;status:string;createdAt:string;changes:string[]};
-type Quote={id:number;quoteNumber:string;customerId?:number;customerName:string;companyName?:string;email?:string;phone?:string;customerAddress?:string;siteAddress?:string;serviceType?:string;servicePrice?:number;salespersonName?:string;project:string;amount:number;status:string;invoiceStatus?:string;paymentNote?:string;invoiceNumber?:string;invoiceSentAt?:string;validUntil:string;createdAt?:string;emailedAt?:string;emailId?:string;revision?:number;followUpDate?:string;purchaseOrderNumber?:string;customerComment?:string;jobStage?:string;discountPercent?:number;items?:QuoteItem[];attachments?:Attachment[];activities?:{id:number;action:string;detail:string;actor:string;createdAt:string}[];revisions?:RevisionSummary[]};
+type Quote={id:number;quoteNumber:string;customerId?:number;customerName:string;companyName?:string;email?:string;phone?:string;customerAddress?:string;siteAddress?:string;serviceType?:string;servicePrice?:number;salespersonName?:string;project:string;amount:number;status:string;invoiceStatus?:string;paymentNote?:string;invoiceNumber?:string;invoiceSentAt?:string;validUntil:string;createdAt?:string;emailedAt?:string;emailId?:string;revision?:number;followUpDate?:string;purchaseOrderNumber?:string;customerComment?:string;jobStage?:string;dispatchStatus?:string;discountPercent?:number;items?:QuoteItem[];attachments?:Attachment[];activities?:{id:number;action:string;detail:string;actor:string;createdAt:string}[];revisions?:RevisionSummary[]};
 const roundMoney=(value:number)=>Math.round((value+Number.EPSILON)*100)/100;
 const money=(v:number)=>new Intl.NumberFormat("en-NZ",{style:"currency",currency:"NZD",minimumFractionDigits:2,maximumFractionDigits:2}).format(roundMoney(v));
 const printText=(value:unknown)=>String(value??"").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[char]??char));
@@ -37,11 +37,12 @@ function printQuotation(quote:Quote,items:QuoteItem[],total:number,gst:number,se
 }
 export default function QuoteDashboard({currentName,currentEmail,isAdmin,userRole="Staff"}:{currentName:string;currentEmail:string;isAdmin:boolean;userRole?:string}){
  const christchurchHour=Number(new Intl.DateTimeFormat("en-NZ",{hour:"numeric",hourCycle:"h23",timeZone:"Pacific/Auckland"}).format(new Date())),greeting=christchurchHour<12?"Good morning":christchurchHour<18?"Good afternoon":"Good evening";
- const [quotes,setQuotes]=useState<Quote[]>([]),[customerCount,setCustomerCount]=useState(0),[companySettings,setCompanySettings]=useState<CompanySettings|null>(null),[team,setTeam]=useState<TeamMember[]>([]),[search,setSearch]=useState(""),[serviceFilter,setServiceFilter]=useState("All"),[salesFilter,setSalesFilter]=useState("All"),[selectedJobIds,setSelectedJobIds]=useState<number[]>([]),[open,setOpen]=useState(false),[nav,setNav]=useState(false),[section,setSection]=useState<"dashboard"|"board"|"todo"|"customers"|"invoices"|"dispatch"|"operations"|"products"|"team"|"accounts"|"archive"|"settings">("dashboard"),[saving,setSaving]=useState(false),[statusBusy,setStatusBusy]=useState<number|null>(null),[selected,setSelected]=useState<Quote|null>(null),[recordOpen,setRecordOpen]=useState(false);
+ const [quotes,setQuotes]=useState<Quote[]>([]),[customerCount,setCustomerCount]=useState(0),[companySettings,setCompanySettings]=useState<CompanySettings|null>(null),[team,setTeam]=useState<TeamMember[]>([]),[search,setSearch]=useState(""),[serviceFilter,setServiceFilter]=useState("All"),[salesFilter,setSalesFilter]=useState("All"),[selectedJobIds,setSelectedJobIds]=useState<number[]>([]),[open,setOpen]=useState(false),[nav,setNav]=useState(false),[section,setSection]=useState<"dashboard"|"board"|"todo"|"customers"|"invoices"|"dispatch"|"operations"|"completed"|"lost"|"products"|"team"|"accounts"|"archive"|"settings">("dashboard"),[saving,setSaving]=useState(false),[statusBusy,setStatusBusy]=useState<number|null>(null),[selected,setSelected]=useState<Quote|null>(null),[recordOpen,setRecordOpen]=useState(false);
  useEffect(()=>{fetch("/api/settings").then(r=>r.ok?r.json():null).then(d=>setCompanySettings(d?.settings??null)).catch(()=>{})},[]);
  useEffect(()=>{if(section==="dashboard"){fetch("/api/quotes").then(r=>r.ok?r.json():null).then(d=>setQuotes(d?.quotes??[])).catch(()=>{});fetch("/api/customers").then(r=>r.ok?r.json():null).then(d=>setCustomerCount(d?.customers?.length??0)).catch(()=>{});fetch("/api/team").then(r=>r.json()).then(d=>setTeam((d.team??[]).filter((m:TeamMember)=>m.active))).catch(()=>{})}},[section]);
- const filtered=useMemo(()=>quotes.filter(q=>(serviceFilter==="All"||(q.serviceType??"Pick Up")===serviceFilter)&&(salesFilter==="All"||(q.salespersonName??"Sai Muddasani")===salesFilter)&&`${q.quoteNumber} ${q.customerName} ${q.project} ${q.status} ${q.serviceType??"Pick Up"} ${q.salespersonName??"Sai Muddasani"}`.toLowerCase().includes(search.toLowerCase())),[quotes,search,serviceFilter,salesFilter]);
- const pipeline=quotes.filter(q=>["Draft","Sent","Accepted"].includes(q.status)).reduce((s,q)=>s+q.amount,0);
+ const activeQuotes=useMemo(()=>quotes.filter(q=>q.jobStage!=="Completed"&&q.jobStage!=="Sale Lost"&&q.dispatchStatus!=="Completed"&&q.dispatchStatus!=="Collected"),[quotes]);
+ const filtered=useMemo(()=>activeQuotes.filter(q=>(serviceFilter==="All"||(q.serviceType??"Pick Up")===serviceFilter)&&(salesFilter==="All"||(q.salespersonName??"Sai Muddasani")===salesFilter)&&`${q.quoteNumber} ${q.customerName} ${q.project} ${q.status} ${q.serviceType??"Pick Up"} ${q.salespersonName??"Sai Muddasani"}`.toLowerCase().includes(search.toLowerCase())),[activeQuotes,search,serviceFilter,salesFilter]);
+ const pipeline=activeQuotes.filter(q=>["Draft","Sent","Accepted"].includes(q.status)).reduce((s,q)=>s+q.amount,0);
  async function createQuote(payload:NewQuotePayload){setSaving(true);try{const r=await fetch("/api/quotes",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});if(!r.ok)throw Error();const d=await r.json();setQuotes(c=>[d.quote,...c]);return d.quote as Quote}finally{setSaving(false)}}
  async function openQuote(quote:Quote){const r=await fetch(`/api/quotes/${quote.id}`);if(r.ok){const d=await r.json();setSelected(d.quote);setRecordOpen(true)}}
  function replaceQuote(updated:Quote){setQuotes(current=>current.map(q=>q.id===updated.id?updated:q));setSelected(updated)}
@@ -71,6 +72,8 @@ export default function QuoteDashboard({currentName,currentEmail,isAdmin,userRol
 {["Admin","Accounts","Staff"].includes(userRole)&&<Nav active={section==="invoices"} icon={<ReceiptText/>} label="Invoices" onClick={()=>{setSection("invoices");setNav(false)}}/>}
 {["Admin","Accounts","Operations","Staff"].includes(userRole)&&<Nav active={section==="dispatch"} icon={<Truck/>} label="Dispatch" onClick={()=>{setSection("dispatch");setNav(false)}}/>}
 {["Admin","Operations","Staff"].includes(userRole)&&<Nav active={section==="operations"} icon={<BriefcaseBusiness/>} label="Jobs & installation" onClick={()=>{setSection("operations");setNav(false)}}/>}
+{["Admin","Accounts","Operations","Staff"].includes(userRole)&&<Nav active={section==="completed"} icon={<Archive/>} label="Completed jobs" onClick={()=>{setSection("completed");setNav(false)}}/>}
+{["Admin","Sales","Operations","Staff"].includes(userRole)&&<Nav active={section==="lost"} icon={<X/>} label="Sale lost" onClick={()=>{setSection("lost");setNav(false)}}/>}
 <Nav active={section==="customers"} icon={<Users/>} label="Customers" onClick={()=>{setSection("customers");setNav(false)}}/>
 {isAdmin&&<Nav active={section==="products"} icon={<PackagePlus/>} label="Products & pricing" onClick={()=>{setSection("products");setNav(false)}}/>}
 {isAdmin&&<Nav active={section==="team"} icon={<UserRound/>} label="Sales team" onClick={()=>{setSection("team");setNav(false)}}/>}
@@ -92,22 +95,22 @@ export default function QuoteDashboard({currentName,currentEmail,isAdmin,userRol
 <Menu/>
 </button>
 <div>
-<h1 className="text-xl font-bold sm:text-2xl">{section==="dashboard"?`${greeting}, ${currentName.split(" ")[0]}`:section==="board"?"Job board":section==="customers"?"Customer management":section==="invoices"?"Accounts & invoicing":section==="dispatch"?"Dispatch":section==="operations"?"Jobs & installation":section==="products"?"Products & pricing":section==="team"?"Sales team":section==="accounts"?"Staff approvals":section==="archive"?"Archive":section==="settings"?"Company settings":"Showroom enquiries"}</h1>
+<h1 className="text-xl font-bold sm:text-2xl">{section==="dashboard"?`${greeting}, ${currentName.split(" ")[0]}`:section==="board"?"Job board":section==="customers"?"Customer management":section==="invoices"?"Accounts & invoicing":section==="dispatch"?"Dispatch":section==="operations"?"Jobs & installation":section==="completed"?"Completed jobs":section==="lost"?"Sale lost":section==="products"?"Products & pricing":section==="team"?"Sales team":section==="accounts"?"Staff approvals":section==="archive"?"Archive":section==="settings"?"Company settings":"Showroom enquiries"}</h1>
 <p className="hidden text-sm text-muted-foreground sm:block">{section==="dashboard"?"Here’s what’s happening with your quotes.":section==="customers"?"Keep customer details ready for future quotations.":section==="invoices"?"Accepted jobs ready for the accounts team.":section==="team"?"Manage salespeople and job assignments.":section==="accounts"?"Review new Robeflow staff registrations.":"Review new requests and prepare their quotations."}</p>
 </div>
 </div>
 {section==="dashboard"&&["Admin","Sales","Staff"].includes(userRole)&&<NewQuote {...{open,setOpen,createQuote,saving}} onEmailed={replaceQuote}/>}
 </header>
-  <div className="space-y-7 p-4 sm:p-8">{section==="board"?<JobBoard currentName={currentName}/>:section==="customers"?<CustomersPanel/>:section==="todo"?<EnquiriesPanel/>:section==="invoices"?<InvoicesPanel/>:section==="dispatch"?<DispatchPanel/>:section==="operations"?<OperationsPanel/>:section==="products"?<ProductsPanel/>:section==="team"?<TeamPanel/>:section==="accounts"?<StaffAccountsPanel/>:section==="archive"?<ArchivePanel/>:section==="settings"?<SettingsPanel/>:<>
-<ActionCentre quotes={quotes as any}/>
+  <div className="space-y-7 p-4 sm:p-8">{section==="board"?<JobBoard currentName={currentName}/>:section==="customers"?<CustomersPanel/>:section==="todo"?<EnquiriesPanel/>:section==="invoices"?<InvoicesPanel/>:section==="dispatch"?<DispatchPanel/>:section==="operations"?<OperationsPanel/>:section==="completed"?<ClosedJobsPanel kind="completed"/>:section==="lost"?<ClosedJobsPanel kind="lost"/>:section==="products"?<ProductsPanel/>:section==="team"?<TeamPanel/>:section==="accounts"?<StaffAccountsPanel/>:section==="archive"?<ArchivePanel/>:section==="settings"?<SettingsPanel/>:<>
+<ActionCentre quotes={activeQuotes as any}/>
 <ReminderCentre/>
 <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 <Metric label="Pipeline value" value={money(pipeline)} note="Active opportunities"/>
-<Metric label="Total quotes" value={String(quotes.length)} note="Across all statuses"/>
-<Metric label="Accepted" value={String(quotes.filter(q=>q.status==="Accepted").length)} note="Ready to schedule"/>
+<Metric label="Active jobs" value={String(activeQuotes.length)} note="Excludes completed and lost"/>
+<Metric label="Accepted" value={String(activeQuotes.filter(q=>q.status==="Accepted").length)} note="Ready to schedule"/>
 <Metric label="Customers" value={String(customerCount)} note="Active customer records"/>
 </section>
-<SalesReports quotes={quotes}/>
+<SalesReports quotes={activeQuotes}/>
   <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
 <div className="flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
 <div>
