@@ -23,7 +23,8 @@ const dispatchColumns:Column[]=[
  {name:"Pick list required",match:j=>!!j.accountsApproved&&(!j.pickListStatus||j.pickListStatus==="Not generated"),changes:{accountsApproved:"true",dispatchStatus:"Awaiting dispatch",pickListStatus:"Not generated"}},
  {name:"Picking",match:j=>!!j.accountsApproved&&!["Not generated","Picked"].includes(j.pickListStatus||"Not generated")&&!["Ready","Collected","Dispatched","Delivered"].includes(j.dispatchStatus||""),changes:{accountsApproved:"true",dispatchStatus:"Awaiting dispatch",pickListStatus:"In progress"}},
  {name:"Ready",match:j=>j.dispatchStatus==="Ready"||j.pickListStatus==="Picked",changes:{accountsApproved:"true",dispatchStatus:"Ready",pickListStatus:"Picked"}},
- {name:"Dispatched / complete",match:j=>["Collected","Dispatched","Delivered"].includes(j.dispatchStatus||""),changes:{accountsApproved:"true",dispatchStatus:"Dispatched"}},
+ {name:"Dispatched",match:j=>["Dispatched","Delivered"].includes(j.dispatchStatus||""),changes:{accountsApproved:"true",dispatchStatus:"Dispatched"}},
+ {name:"Completed · payment due",match:j=>["Completed","Collected"].includes(j.dispatchStatus||"")&&j.invoiceStatus!=="Paid in Full",changes:{accountsApproved:"true",dispatchStatus:"Completed"}},
 ];
 const installationStages=["Site measure required","Measure booked","Measurement completed","Design approved","Deposit received","Materials ordered","Ready for installation","Installation booked","Installed","Completed","Sale Lost"];
 const installationColumns:Column[]=installationStages.map(name=>({name,match:j=>(j.jobStage||"Site measure required")===name,changes:{jobStage:name}}));
@@ -33,7 +34,7 @@ export default function JobBoard({currentName}:{currentName:string}){
  async function load(){const r=await fetch("/api/quotes");if(r.ok)setJobs((await r.json()).quotes??[])}
  useEffect(()=>{load()},[]);
  const people=useMemo(()=>Array.from(new Set(jobs.map(j=>j.salespersonName||"Unassigned"))).sort(),[jobs]);
- const eligible=useMemo(()=>jobs.filter(j=>j.jobStage!=="Completed"&&j.jobStage!=="Sale Lost"&&j.dispatchStatus!=="Completed"&&j.dispatchStatus!=="Collected").filter(j=>board==="Sales"||(board==="Dispatch"?j.status==="Accepted"&&j.serviceType!=="Installation":j.status==="Accepted"&&j.serviceType==="Installation")),[jobs,board]);
+ const eligible=useMemo(()=>jobs.filter(j=>j.jobStage!=="Sale Lost"&&!((j.jobStage==="Completed"||j.dispatchStatus==="Completed"||j.dispatchStatus==="Collected")&&j.invoiceStatus==="Paid in Full")).filter(j=>board==="Sales"||(board==="Dispatch"?j.status==="Accepted"&&j.serviceType!=="Installation":j.status==="Accepted"&&j.serviceType==="Installation")),[jobs,board]);
  const filtered=useMemo(()=>eligible.filter(j=>(salesperson==="All"||(j.salespersonName||"Unassigned")===salesperson)&&(!mine||(j.salespersonName||"").toLowerCase()===currentName.toLowerCase())&&(service==="All"||(j.serviceType||"Pick Up")===service)&&(payment==="All"||(j.invoiceStatus||"To be Invoiced")===payment)&&`${j.quoteNumber} ${j.customerName} ${j.companyName||""} ${j.project} ${j.siteAddress||""}`.toLowerCase().includes(search.toLowerCase())),[eligible,salesperson,mine,currentName,service,payment,search]);
  const columns=board==="Sales"?salesColumns:board==="Dispatch"?dispatchColumns:installationColumns;
  async function move(job:Job,column:Column){setBusy(job.id);const r=await fetch(`/api/quotes/${job.id}/board`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({...column.changes,actor:currentName})});setBusy(null);if(!r.ok){window.alert((await r.json()).error||"The job could not be moved.");return}await load()}
