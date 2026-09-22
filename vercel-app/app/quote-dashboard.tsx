@@ -11,6 +11,7 @@ import StaffAccountsPanel from "./staff-accounts-panel";
 import JobBoard from "./job-board";
 import { ActionCentre, ArchivePanel, ClosedJobsPanel, DispatchPanel, OperationsPanel, ProductsPanel, ReminderCentre, SalesReports, SettingsPanel } from "./operations-workspace";
 import { ACCESSORY_OPTIONS, BOARD_COLOURS, DOOR_CONFIGURATIONS, HARDWARE_COLOURS, IROBE_OPTIONS, MIRROR_OPTIONS } from "../lib/quote-options";
+import { displayedJobNumber } from "@/lib/job-reference";
 type QuoteItem={id?:number;category:string;systemType:string;colour:string;designSelection?:string;hardwareColour?:string;doorConfiguration?:string;mirrorOption?:string;price:number|string;quantity?:number|string;unitPrice?:number|string;description?:string;sortOrder?:number};
 type Attachment={id:number;fileName:string;contentType:string;size:number;createdAt?:string};
 type Customer={id:number;name:string;companyName:string;email:string;phone:string;address:string;siteAddress:string};
@@ -18,7 +19,7 @@ type TeamMember={id:number;name:string;active:boolean};
 type Product={id:number;name:string;category:string;price:number;active:boolean};
 type CompanySettings={companyName:string;subtitle:string;gstNumber:string;phone:string;email:string;address:string;bankDetails:string;terms:string;warranty:string;installationExclusions:string;emailSignature:string};
 type RevisionSummary={id:number;quoteNumber:string;revision:number;amount:number;status:string;createdAt:string;changes:string[]};
-type Quote={id:number;quoteNumber:string;customerId?:number;customerName:string;companyName?:string;email?:string;phone?:string;customerAddress?:string;siteAddress?:string;serviceType?:string;servicePrice?:number;salespersonName?:string;project:string;amount:number;status:string;invoiceStatus?:string;paymentNote?:string;invoiceNumber?:string;invoiceSentAt?:string;validUntil:string;createdAt?:string;emailedAt?:string;emailId?:string;revision?:number;followUpDate?:string;purchaseOrderNumber?:string;customerComment?:string;jobStage?:string;dispatchStatus?:string;discountPercent?:number;items?:QuoteItem[];attachments?:Attachment[];activities?:{id:number;action:string;detail:string;actor:string;createdAt:string}[];revisions?:RevisionSummary[]};
+type Quote={id:number;quoteNumber:string;customerId?:number;customerName:string;companyName?:string;email?:string;phone?:string;customerAddress?:string;siteAddress?:string;serviceType?:string;servicePrice?:number;salespersonName?:string;project:string;amount:number;status:string;invoiceStatus?:string;paymentNote?:string;invoiceNumber?:string;depositInvoiceNumber?:string;balanceInvoiceNumber?:string;invoiceSentAt?:string;validUntil:string;createdAt?:string;emailedAt?:string;emailId?:string;revision?:number;followUpDate?:string;purchaseOrderNumber?:string;customerComment?:string;jobStage?:string;dispatchStatus?:string;discountPercent?:number;items?:QuoteItem[];attachments?:Attachment[];activities?:{id:number;action:string;detail:string;actor:string;createdAt:string}[];revisions?:RevisionSummary[]};
 const roundMoney=(value:number)=>Math.round((value+Number.EPSILON)*100)/100;
 const money=(v:number)=>new Intl.NumberFormat("en-NZ",{style:"currency",currency:"NZD",minimumFractionDigits:2,maximumFractionDigits:2}).format(roundMoney(v));
 const printText=(value:unknown)=>String(value??"").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[char]??char));
@@ -41,7 +42,7 @@ export default function QuoteDashboard({currentName,currentEmail,isAdmin,userRol
  useEffect(()=>{fetch("/api/settings").then(r=>r.ok?r.json():null).then(d=>setCompanySettings(d?.settings??null)).catch(()=>{})},[]);
  useEffect(()=>{if(section==="dashboard"){fetch("/api/quotes").then(r=>r.ok?r.json():null).then(d=>setQuotes(d?.quotes??[])).catch(()=>{});fetch("/api/customers").then(r=>r.ok?r.json():null).then(d=>setCustomerCount(d?.customers?.length??0)).catch(()=>{});fetch("/api/team").then(r=>r.json()).then(d=>setTeam((d.team??[]).filter((m:TeamMember)=>m.active))).catch(()=>{})}},[section]);
  const activeQuotes=useMemo(()=>quotes.filter(q=>q.jobStage!=="Sale Lost"&&!((q.jobStage==="Completed"||q.dispatchStatus==="Completed"||q.dispatchStatus==="Collected")&&q.invoiceStatus==="Paid in Full")),[quotes]);
- const filtered=useMemo(()=>activeQuotes.filter(q=>(serviceFilter==="All"||(q.serviceType??"Pick Up")===serviceFilter)&&(salesFilter==="All"||(q.salespersonName??"Sai Muddasani")===salesFilter)&&`${q.quoteNumber} ${q.customerName} ${q.project} ${q.status} ${q.serviceType??"Pick Up"} ${q.salespersonName??"Sai Muddasani"}`.toLowerCase().includes(search.toLowerCase())),[activeQuotes,search,serviceFilter,salesFilter]);
+ const filtered=useMemo(()=>activeQuotes.filter(q=>(serviceFilter==="All"||(q.serviceType??"Pick Up")===serviceFilter)&&(salesFilter==="All"||(q.salespersonName??"Sai Muddasani")===salesFilter)&&`${q.quoteNumber} ${displayedJobNumber(q)} ${q.customerName} ${q.project} ${q.status} ${q.serviceType??"Pick Up"} ${q.salespersonName??"Sai Muddasani"}`.toLowerCase().includes(search.toLowerCase())),[activeQuotes,search,serviceFilter,salesFilter]);
  const pipeline=activeQuotes.filter(q=>["Draft","Sent","Accepted"].includes(q.status)).reduce((s,q)=>s+q.amount,0);
  async function createQuote(payload:NewQuotePayload){setSaving(true);try{const r=await fetch("/api/quotes",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});if(!r.ok)throw Error();const d=await r.json();setQuotes(c=>[d.quote,...c]);return d.quote as Quote}finally{setSaving(false)}}
  async function openQuote(quote:Quote){const r=await fetch(`/api/quotes/${quote.id}`);if(r.ok){const d=await r.json();setSelected(d.quote);setRecordOpen(true)}}
@@ -127,7 +128,7 @@ export default function QuoteDashboard({currentName,currentEmail,isAdmin,userRol
 <TableHeader>
 <TableRow>
 <TableHead className="w-12 pl-5"><input type="checkbox" aria-label="Select all jobs" checked={filtered.filter(q=>q.id>0).length>0&&filtered.filter(q=>q.id>0).every(q=>selectedJobIds.includes(q.id))} onChange={e=>setSelectedJobIds(e.target.checked?filtered.filter(q=>q.id>0).map(q=>q.id):[])}/></TableHead>
-<TableHead className="pl-5">Quote</TableHead>
+<TableHead className="pl-5">Job reference</TableHead>
 <TableHead>Customer</TableHead>
 <TableHead>Project</TableHead>
 <TableHead>Salesperson</TableHead>
@@ -140,7 +141,7 @@ export default function QuoteDashboard({currentName,currentEmail,isAdmin,userRol
 <TableBody>{filtered.map(q=>
 <TableRow key={q.id} className="cursor-pointer" onClick={()=>openQuote(q)} tabIndex={0} onKeyDown={e=>{if(e.key==="Enter")openQuote(q)}}>
 <TableCell className="pl-5" onClick={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()}><input type="checkbox" disabled={q.id<0} aria-label={`Select ${q.quoteNumber}`} checked={selectedJobIds.includes(q.id)} onChange={e=>setSelectedJobIds(current=>e.target.checked?[...current,q.id]:current.filter(id=>id!==q.id))}/></TableCell>
-<TableCell className="pl-5 font-semibold text-primary">{q.quoteNumber}</TableCell>
+<TableCell className="pl-5 font-semibold text-primary">{displayedJobNumber(q)}</TableCell>
 <TableCell className="font-medium">{q.customerName}</TableCell>
 <TableCell className="max-w-56 truncate text-muted-foreground">{q.project}</TableCell>
 <TableCell className="font-medium">{q.salespersonName??"Sai Muddasani"}</TableCell>
