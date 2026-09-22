@@ -79,6 +79,12 @@ type InvoiceQuote = {
   invoiceStatus: string;
   paymentNote: string;
   invoiceSentAt?: string;
+  jobStage?: string;
+  depositInvoiceNumber?: string;
+  depositInvoiceSentAt?: string;
+  balanceInvoiceNumber?: string;
+  balanceInvoiceSentAt?: string;
+  orderConfirmationSentAt?: string;
   acceptanceToken: string;
   salespersonName: string;
   serviceType: string;
@@ -466,7 +472,7 @@ export function InvoicesPanel() {
     const d = await fetch("/api/invoices").then((r) => r.json()),
       rows = d.invoices ?? [];
     setInvoices(rows);
-    setNumbers(Object.fromEntries(rows.map((q: InvoiceQuote) => [q.id, q.invoiceNumber ?? ""])));
+    setNumbers(Object.fromEntries(rows.map((q: InvoiceQuote) => [q.id, q.serviceType === "Installation" && q.jobStage === "Completed" && q.depositInvoiceSentAt && !q.balanceInvoiceSentAt ? q.balanceInvoiceNumber ?? "" : q.depositInvoiceNumber || q.invoiceNumber || ""])));
     setNotes(Object.fromEntries(rows.map((q: InvoiceQuote) => [q.id, q.paymentNote ?? ""])));
   }
   useEffect(() => {
@@ -507,23 +513,11 @@ export function InvoicesPanel() {
     }
     setSaving(quote.id);
     try {
-      const saved = await fetch("/api/invoices", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: quote.id,
-            invoiceNumber: numbers[quote.id],
-            invoiceStatus: "To be Invoiced",
-            paymentNote: notes[quote.id] ?? "",
-          }),
-        }),
-        savedResult = await saved.json();
-      if (!saved.ok) {
-        window.alert(savedResult.error || "Invoice could not be prepared.");
-        return;
-      }
+      const phase = quote.serviceType === "Installation" ? quote.depositInvoiceSentAt ? "balance" : "deposit" : "full";
       const response = await fetch(`/api/invoices/${quote.id}/email`, {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phase, invoiceNumber: numbers[quote.id] }),
         }),
         result = await response.json();
       if (!response.ok) {
@@ -531,10 +525,20 @@ export function InvoicesPanel() {
         return;
       }
       await load();
-      window.alert(`Invoice ${numbers[quote.id]} was emailed to ${quote.email}.`);
+      window.alert(`${phase === "deposit" ? "50% deposit" : phase === "balance" ? "Remaining balance" : "Full"} invoice ${numbers[quote.id]} was emailed to ${quote.email}.`);
     } finally {
       setSaving(null);
     }
+  }
+  async function sendOrderConfirmation(quote: InvoiceQuote) {
+    if (!quote.email) return window.alert("Add the customer email address before sending the order confirmation.");
+    setSaving(quote.id);
+    try {
+      const response = await fetch(`/api/orders/${quote.id}/email`, { method: "POST" }), result = await response.json();
+      if (!response.ok) return window.alert(result.error || "Order confirmation could not be sent.");
+      await load();
+      window.alert(`Order confirmation was emailed to ${quote.email}.`);
+    } finally { setSaving(null); }
   }
   async function recordPayment(event: React.FormEvent<HTMLFormElement>, quote: InvoiceQuote) {
     event.preventDefault();
@@ -658,7 +662,8 @@ export function InvoicesPanel() {
   }
   const invoiced = invoices.filter((q) => q.invoiceStatus && q.invoiceStatus !== "To be Invoiced"),
     totalInvoiced = invoiced.reduce((sum, q) => sum + q.amount, 0),
-    totalPaid = invoices.reduce((sum, q) => sum + Number(q.totalPaid || 0), 0);
+    totalPaid = invoices.reduce((sum, q) => sum + Number(q.totalPaid || 0), 0),
+    balanceAlerts = invoices.filter((q) => q.serviceType === "Installation" && q.jobStage === "Completed" && !!q.depositInvoiceSentAt && !q.balanceInvoiceSentAt && Number(q.totalPaid || 0) < Number(q.amount));
   return (
     <div className="space-y-6">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -667,6 +672,12 @@ export function InvoicesPanel() {
         <MetricCard label="Outstanding" value={money(Math.max(0, totalInvoiced - totalPaid))} tone="amber" />
         <MetricCard label="Payments received" value={money(totalPaid)} tone="emerald" />
       </section>
+      {balanceAlerts.length > 0 && <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div><p className="font-bold text-amber-950">{balanceAlerts.length} completed installation{balanceAlerts.length === 1 ? " needs" : "s need"} a remaining invoice</p><p className="text-sm text-amber-800">Open the highlighted job below, enter the balance Xero invoice number, and send the remaining invoice.</p></div>
+          <Button variant="outline" className="border-amber-400 bg-white" onClick={() => { setStatusTab("All"); setSearch(balanceAlerts[0].quoteNumber); setExpanded(balanceAlerts[0].id); }}>Review now</Button>
+        </div>
+      </section>}
       <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -682,7 +693,10 @@ export function InvoicesPanel() {
         <div className="grid gap-4 p-5">
           {filtered.map((quote) => {
             const status = quote.invoiceStatus || "To be Invoiced";
-            const sent = status !== "To be Invoiced",
+            const installation = quote.serviceType === "Installation",
+              balanceDue = installation && quote.jobStage === "Completed" && !!quote.depositInvoiceSentAt && !quote.balanceInvoiceSentAt && Number(quote.totalPaid || 0) < Number(quote.amount),
+              phaseSent = installation ? balanceDue ? !!quote.balanceInvoiceSentAt : !!quote.depositInvoiceSentAt : !!quote.invoiceSentAt,
+              sent = status !== "To be Invoiced",
               open = expanded === quote.id;
             return (
               <article key={quote.id} className="rounded-2xl border p-5">
@@ -693,6 +707,7 @@ export function InvoicesPanel() {
                       <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${status === "Paid in Full" ? "bg-emerald-100 text-emerald-800" : status === "To be Invoiced" ? "bg-amber-100 text-amber-800" : "bg-violet-100 text-violet-800"}`}>{status}</span>
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold">{quote.serviceType || "Pick Up"}</span>
                       {quote.accountsApproved && <span className="rounded-full bg-cyan-100 px-2.5 py-1 text-xs font-semibold text-cyan-800">Approved for dispatch</span>}
+                      {balanceDue && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">Remaining invoice due</span>}
                     </div>
                     <h3 className="mt-2 text-lg font-bold">
                       {quote.customerName}
@@ -757,16 +772,20 @@ export function InvoicesPanel() {
                           Invoice PDF
                         </a>
                       )}
+                      <Button variant="outline" disabled={saving === quote.id || !!quote.orderConfirmationSentAt} onClick={() => sendOrderConfirmation(quote)}>
+                        <Mail className="size-4" />
+                        {quote.orderConfirmationSentAt ? "Order confirmation sent" : "Email full order confirmation"}
+                      </Button>
                     </div>
                   </div>
                 )}
                 <div className="mt-5 grid gap-3 border-t pt-4 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
                   <div className="grid gap-2">
-                    <Label htmlFor={`invoice-${quote.id}`}>Xero invoice number</Label>
+                    <Label htmlFor={`invoice-${quote.id}`}>{installation ? balanceDue ? "Remaining balance Xero invoice number" : "50% deposit Xero invoice number" : "Xero invoice number"}</Label>
                     <Input
                       id={`invoice-${quote.id}`}
                       value={numbers[quote.id] ?? ""}
-                      disabled={sent}
+                      disabled={phaseSent}
                       onChange={(e) =>
                         setNumbers((current) => ({
                           ...current,
@@ -777,7 +796,7 @@ export function InvoicesPanel() {
                       className="disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-600"
                     />
                   </div>
-                  {sent ? (
+                  {phaseSent ? (
                     <div className="grid gap-2">
                       <Label>Payment status</Label>
                       <div className="flex h-10 items-center rounded-md border bg-white px-3 text-sm font-semibold">{status}</div>
@@ -785,20 +804,18 @@ export function InvoicesPanel() {
                   ) : (
                     <div />
                   )}
-                  {sent ? (
+                  {phaseSent ? (
                     <div className="flex gap-2">
                       <a href={`/invoice/${quote.acceptanceToken}`} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-md border bg-white px-4 text-sm font-medium hover:bg-slate-50">
                         <ExternalLink className="size-4" />
                         View invoice
                       </a>
-                      <Button variant="outline" disabled={saving === quote.id} onClick={() => updateInvoice(quote, "To be Invoiced")}>
-                        Move back
-                      </Button>
+                      {!installation && <Button variant="outline" disabled={saving === quote.id} onClick={() => updateInvoice(quote, "To be Invoiced")}>Move back</Button>}
                     </div>
                   ) : (
                     <Button disabled={saving === quote.id} onClick={() => sendInvoice(quote)}>
                       <Mail className="size-4" />
-                      {saving === quote.id ? "Sending…" : "Send invoice"}
+                      {saving === quote.id ? "Sending…" : installation ? balanceDue ? "Send remaining invoice" : "Send 50% deposit invoice" : "Send invoice"}
                     </Button>
                   )}
                 </div>
