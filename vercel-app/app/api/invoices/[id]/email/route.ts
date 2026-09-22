@@ -2,6 +2,7 @@ import { requireStaff } from "@/lib/api-auth";
 import { appUrl,sendEmail } from "@/lib/email";
 import { loadQuote,safe } from "@/lib/operational";
 import { createInvoicePdf } from "@/lib/invoice-pdf";
+import { suggestedInvoiceNumber } from "@/lib/job-reference";
 
 export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){
  const auth=await requireStaff(["Admin","Accounts","Staff"]);if(auth.error)return auth.error;
@@ -11,9 +12,11 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
  const installation=quote.serviceType==="Installation",phase=installation?(body.phase||"deposit"):"full";
  if(!["deposit","balance","full"].includes(phase))return Response.json({error:"Choose a valid invoice type."},{status:400});
  if(phase==="balance"&&quote.jobStage!=="Completed")return Response.json({error:"The installation must be completed before sending the remaining balance invoice."},{status:400});
- const paid=quote.payments.reduce((sum:number,p:{amount:number})=>sum+Number(p.amount),0),half=Math.round(Number(quote.amount)*50)/100,invoiceAmount=phase==="deposit"?half:phase==="balance"?Math.max(0,Math.min(half,Math.round((Number(quote.amount)-paid)*100)/100)):Number(quote.amount),supplied=String(body.invoiceNumber||"").trim();
+ const paid=quote.payments.reduce((sum:number,p:{amount:number})=>sum+Number(p.amount),0),half=Math.round(Number(quote.amount)*50)/100,invoiceAmount=phase==="deposit"?half:phase==="balance"?Math.max(0,Math.min(half,Math.round((Number(quote.amount)-paid)*100)/100)):Number(quote.amount),supplied=String(body.invoiceNumber||suggestedInvoiceNumber(quote,phase)).trim().toUpperCase();
  if(invoiceAmount<=0)return Response.json({error:"There is no remaining balance to invoice."},{status:400});
  if(!supplied)return Response.json({error:"Enter the Xero invoice number first."},{status:400});
+ const{data:duplicate}=await auth.supabase.from("quotes").select("id").neq("id",id).or(`invoice_number.eq.${supplied},deposit_invoice_number.eq.${supplied},balance_invoice_number.eq.${supplied}`).limit(1).maybeSingle();
+ if(duplicate)return Response.json({error:`Invoice number ${supplied} is already used by another job.`},{status:409});
  const label=phase==="deposit"?"50% deposit":phase==="balance"?"remaining balance":"full",invoiceQuote={...quote,amount:invoiceAmount,items:[{category:`${label[0].toUpperCase()+label.slice(1)} for ${quote.project}`,systemType:"Accepted order",colour:"",price:invoiceAmount}],payments:[]};
  const{data:s}=await auth.supabase.from("company_settings").select("*").eq("id",1).single();
  try{
