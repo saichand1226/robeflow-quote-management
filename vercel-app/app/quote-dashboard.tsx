@@ -1092,16 +1092,11 @@ function NewQuote({
       "Storage 1",
       "Bedroom 1",
       "Accessories",
-    ].map((category, index) => ({
+    ].map((category) => ({
       category,
-      systemType:
-        index === 4
-          ? "Sliding Doors"
-          : category === "Accessories"
-            ? "Accessories"
-            : "I-Robe",
+      systemType: "",
       colour: "Undecided",
-      designSelection: category === "Accessories" ? "" : "Custom design",
+      designSelection: "",
       hardwareColour: "Undecided",
       doorConfiguration: "",
       mirrorOption: "No mirror selected",
@@ -1498,6 +1493,7 @@ function NewQuote({
                           </Label>
                           <select
                             id={`system-${index}`}
+                            required
                             value={item.systemType}
                             onChange={(e) => {
                               const value = e.target.value;
@@ -1511,6 +1507,9 @@ function NewQuote({
                             className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                             aria-label={`${item.category} system`}
                           >
+                            <option value="" disabled>
+                              Select from list
+                            </option>
                             <option>I-Robe</option>
                             <option>I-Robe Premium</option>
                             <option>Cabinet System</option>
@@ -1608,9 +1607,9 @@ function NewQuote({
                         ...current,
                         {
                           category: `Area ${current.length + 1}`,
-                          systemType: "I-Robe",
+                          systemType: "",
                           colour: "Undecided",
-                          designSelection: "Custom design",
+                          designSelection: "",
                           hardwareColour: "Undecided",
                           doorConfiguration: "",
                           mirrorOption: "No mirror selected",
@@ -2031,38 +2030,41 @@ function ItemOptions({
   ) => void;
 }) {
   const iRobe = item.systemType === "I-Robe",
+    hardwareSystem = ["I-Robe", "I-Robe Premium", "Cabinet System"].includes(
+      item.systemType,
+    ),
     sliding = item.systemType === "Sliding Doors",
     accessory = item.systemType === "Accessories";
-  if (!iRobe && !sliding && !accessory) return null;
+  if (!hardwareSystem && !sliding && !accessory) return null;
   return (
     <div className="mt-3 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2">
       {iRobe && (
-        <>
-          <div className="grid gap-1.5">
-            <Label className="text-xs">I-Robe design</Label>
-            <select
-              value={item.designSelection || "Custom design"}
-              onChange={(e) => onChange("designSelection", e.target.value)}
-              className="h-10 rounded-md border bg-white px-3 text-sm"
-            >
-              {IROBE_OPTIONS.map(([name]) => (
-                <option key={name}>{name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="grid gap-1.5">
-            <Label className="text-xs">Handles & hanging bars</Label>
-            <select
-              value={item.hardwareColour || "Undecided"}
-              onChange={(e) => onChange("hardwareColour", e.target.value)}
-              className="h-10 rounded-md border bg-white px-3 text-sm"
-            >
-              {HARDWARE_COLOURS.map((value) => (
-                <option key={value}>{value}</option>
-              ))}
-            </select>
-          </div>
-        </>
+        <div className="grid gap-1.5">
+          <Label className="text-xs">I-Robe design</Label>
+          <select
+            value={item.designSelection || "Custom design"}
+            onChange={(e) => onChange("designSelection", e.target.value)}
+            className="h-10 rounded-md border bg-white px-3 text-sm"
+          >
+            {IROBE_OPTIONS.map(([name]) => (
+              <option key={name}>{name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {hardwareSystem && (
+        <div className={`grid gap-1.5 ${iRobe ? "" : "sm:col-span-2"}`}>
+          <Label className="text-xs">Handles & hanging bars</Label>
+          <select
+            value={item.hardwareColour || "Undecided"}
+            onChange={(e) => onChange("hardwareColour", e.target.value)}
+            className="h-10 rounded-md border bg-white px-3 text-sm"
+          >
+            {HARDWARE_COLOURS.map((value) => (
+              <option key={value}>{value}</option>
+            ))}
+          </select>
+        </div>
       )}
       {accessory && (
         <div className="grid gap-1.5 sm:col-span-2">
@@ -2606,6 +2608,7 @@ function QuoteRecord({
                         }
                       />
                       <select
+                        required
                         aria-label={`System for ${item.category}`}
                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
                         value={item.systemType}
@@ -2613,6 +2616,9 @@ function QuoteRecord({
                           updateItem(index, "systemType", e.target.value)
                         }
                       >
+                        <option value="" disabled>
+                          Select from list
+                        </option>
                         <option>I-Robe</option>
                         <option>I-Robe Premium</option>
                         <option>Cabinet System</option>
@@ -2837,9 +2843,9 @@ function QuoteRecord({
                           ...(current.items ?? []),
                           {
                             category: "New area",
-                            systemType: "I-Robe",
+                            systemType: "",
                             colour: "Undecided",
-                            designSelection: "Custom design",
+                            designSelection: "",
                             hardwareColour: "Undecided",
                             doorConfiguration: "",
                             mirrorOption: "No mirror selected",
