@@ -10,6 +10,7 @@ export async function GET(_: Request, c: { params: Promise<{ id: string }> }) {
     { data: items },
     { data: activities },
     { data: attachments },
+    { data: customValues },
   ] = await Promise.all([
     auth.supabase.from("quotes").select("*").eq("id", id).single(),
     auth.supabase
@@ -27,6 +28,12 @@ export async function GET(_: Request, c: { params: Promise<{ id: string }> }) {
       .select("*")
       .eq("quote_id", id)
       .order("created_at"),
+    auth.supabase
+      .from("quote_custom_field_values")
+      .select(
+        "field_id,value,custom_field_definitions(id,field_key,label,field_type,required,show_new_quote,show_dashboard,show_job_card,active,sort_order)",
+      )
+      .eq("quote_id", id),
   ]);
   if (error)
     return Response.json({ error: "Quote not found." }, { status: 404 });
@@ -42,6 +49,15 @@ export async function GET(_: Request, c: { params: Promise<{ id: string }> }) {
       items: (items ?? []).map(camel),
       activities: (activities ?? []).map(camel),
       attachments: (attachments ?? []).map(camel),
+      customFields: (customValues ?? [])
+        .filter((value: any) => value.custom_field_definitions?.active)
+        .map((value: any) =>
+          camel({
+            ...value.custom_field_definitions,
+            field_id: value.field_id,
+            value: value.value,
+          }),
+        ),
       revisions: (versions ?? []).map((v: any) => ({
         ...camel(v),
         changes:
@@ -62,6 +78,27 @@ export async function PATCH(
     b = await request.json(),
     items = (b.items ?? []).filter((i: { category?: string }) =>
       i.category?.trim(),
+    );
+  const customFields: Record<string, string> = Array.isArray(b.customFields)
+    ? Object.fromEntries(
+        b.customFields.map((field: { fieldId: number; value: string }) => [
+          field.fieldId,
+          field.value,
+        ]),
+      )
+    : (b.customFields ?? {});
+  const { data: requiredFields } = await auth.supabase
+    .from("custom_field_definitions")
+    .select("id,label,required")
+    .eq("active", true)
+    .eq("show_new_quote", true);
+  const missing = (requiredFields ?? []).find(
+    (field) => field.required && !String(customFields[field.id] ?? "").trim(),
+  );
+  if (missing)
+    return Response.json(
+      { error: `${missing.label} is required.` },
+      { status: 400 },
     );
   if (
     !b.customerName?.trim() ||
@@ -141,14 +178,34 @@ export async function PATCH(
   });
   await auth.supabase.from("quote_items").insert(rows);
   await auth.supabase
-    .from("quote_activities")
-    .insert({
+    .from("quote_custom_field_values")
+    .delete()
+    .eq("quote_id", id);
+  const customRows = Object.entries(customFields)
+    .filter(([, value]) => String(value).trim() !== "")
+    .map(([fieldId, value]) => ({
       quote_id: id,
-      action: "Quote updated",
-      detail: `Status: ${quote.status}`,
-      actor: quote.salesperson_name,
-    });
-  return Response.json({ quote: { ...camel(quote), items: rows.map(camel) } });
+      field_id: Number(fieldId),
+      value: String(value),
+    }));
+  if (customRows.length)
+    await auth.supabase.from("quote_custom_field_values").insert(customRows);
+  await auth.supabase.from("quote_activities").insert({
+    quote_id: id,
+    action: "Quote updated",
+    detail: `Status: ${quote.status}`,
+    actor: quote.salesperson_name,
+  });
+  return Response.json({
+    quote: {
+      ...camel(quote),
+      items: rows.map(camel),
+      customFields: Object.entries(customFields).map(([fieldId, value]) => ({
+        fieldId: Number(fieldId),
+        value,
+      })),
+    },
+  });
 }
 export async function DELETE(
   _: Request,
@@ -208,21 +265,25 @@ export async function POST(_: Request, c: { params: Promise<{ id: string }> }) {
     .select("*")
     .eq("quote_id", id);
   if (items?.length)
+    await auth.supabase.from("quote_items").insert(
+      items.map(({ id: _, quote_id: __, ...x }: any) => ({
+        ...x,
+        quote_id: quote.id,
+      })),
+    );
+  const { data: customValues } = await auth.supabase
+    .from("quote_custom_field_values")
+    .select("field_id,value")
+    .eq("quote_id", id);
+  if (customValues?.length)
     await auth.supabase
-      .from("quote_items")
-      .insert(
-        items.map(({ id: _, quote_id: __, ...x }: any) => ({
-          ...x,
-          quote_id: quote.id,
-        })),
-      );
-  await auth.supabase
-    .from("quote_activities")
-    .insert({
-      quote_id: quote.id,
-      action: "Revision created",
-      detail: `Revision ${revision} created from ${source.quote_number}`,
-      actor: auth.profile.full_name,
-    });
+      .from("quote_custom_field_values")
+      .insert(customValues.map((value) => ({ ...value, quote_id: quote.id })));
+  await auth.supabase.from("quote_activities").insert({
+    quote_id: quote.id,
+    action: "Revision created",
+    detail: `Revision ${revision} created from ${source.quote_number}`,
+    actor: auth.profile.full_name,
+  });
   return Response.json({ quote: camel(quote) }, { status: 201 });
 }

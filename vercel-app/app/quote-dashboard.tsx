@@ -79,6 +79,11 @@ import {
   quoteItemDetails,
 } from "../lib/quote-options";
 import { displayedJobNumber } from "@/lib/job-reference";
+import type {
+  CustomFieldDefinition,
+  CustomFieldValue,
+} from "@/lib/custom-fields";
+import { displayCustomValue } from "@/lib/custom-fields";
 type QuoteItem = {
   id?: number;
   category: string;
@@ -184,6 +189,7 @@ type Quote = {
     createdAt: string;
   }[];
   revisions?: RevisionSummary[];
+  customFields?: CustomFieldValue[];
 };
 const roundMoney = (value: number) =>
   Math.round((value + Number.EPSILON) * 100) / 100;
@@ -891,8 +897,26 @@ export default function QuoteDashboard({
                         <TableCell className="font-medium">
                           {q.customerName}
                         </TableCell>
-                        <TableCell className="max-w-56 truncate text-muted-foreground">
-                          {q.project}
+                        <TableCell className="max-w-64 text-muted-foreground">
+                          <span className="block truncate">{q.project}</span>
+                          {(q.customFields ?? [])
+                            .filter(
+                              (field) => field.showDashboard && field.value,
+                            )
+                            .map((field) => (
+                              <span
+                                key={field.fieldId}
+                                className="mt-1 block truncate text-xs"
+                              >
+                                <strong className="text-foreground">
+                                  {field.label}:
+                                </strong>{" "}
+                                {displayCustomValue(
+                                  field.value,
+                                  field.fieldType,
+                                )}
+                              </span>
+                            ))}
                         </TableCell>
                         <TableCell className="font-medium">
                           {q.salespersonName ?? "Sai Muddasani"}
@@ -1056,6 +1080,7 @@ type NewQuotePayload = {
   validUntil: string;
   followUpDate?: string;
   discountPercent: number;
+  customFields: Record<string, string>;
   items: {
     category: string;
     systemType: string;
@@ -1129,7 +1154,11 @@ function NewQuote({
     [followUpDate, setFollowUpDate] = useState(""),
     [files, setFiles] = useState<File[]>([]),
     [pickListFile, setPickListFile] = useState<File | null>(null),
-    [uploading, setUploading] = useState(false);
+    [uploading, setUploading] = useState(false),
+    [customDefinitions, setCustomDefinitions] = useState<
+      CustomFieldDefinition[]
+    >([]),
+    [customValues, setCustomValues] = useState<Record<string, string>>({});
   useEffect(() => {
     if (open) {
       fetch("/api/team")
@@ -1142,6 +1171,17 @@ function NewQuote({
         .then((r) => r.json())
         .then((d) =>
           setProducts((d.products ?? []).filter((p: Product) => p.active)),
+        )
+        .catch(() => {});
+      fetch("/api/custom-fields")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) =>
+          setCustomDefinitions(
+            (d?.fields ?? []).filter(
+              (field: CustomFieldDefinition) =>
+                field.active && field.showNewQuote,
+            ),
+          ),
         )
         .catch(() => {});
     }
@@ -1225,6 +1265,7 @@ function NewQuote({
     setFollowUpDate("");
     setFiles([]);
     setPickListFile(null);
+    setCustomValues({});
   }
   function chooseCustomer(customer: Customer) {
     setCustomerId(customer.id);
@@ -1267,6 +1308,7 @@ function NewQuote({
       status: "Draft",
       validUntil,
       discountPercent: discount,
+      customFields: customValues,
       items: items
         .filter((i) => i.category.trim())
         .map((i) => ({
@@ -1673,6 +1715,31 @@ function NewQuote({
                   </div>
                 </div>
               </div>
+              {customDefinitions.length > 0 && (
+                <div className="rounded-xl border bg-white p-4">
+                  <div className="mb-3">
+                    <p className="font-semibold">Additional job details</p>
+                    <p className="text-xs text-slate-500">
+                      Fields configured by the RobeFlow administrator.
+                    </p>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {customDefinitions.map((field) => (
+                      <CustomFieldInput
+                        key={field.id}
+                        field={field}
+                        value={customValues[field.id] ?? ""}
+                        onChange={(value) =>
+                          setCustomValues((current) => ({
+                            ...current,
+                            [field.id]: value,
+                          }))
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="grid gap-4 rounded-xl border bg-amber-50/50 p-4 sm:grid-cols-2 sm:items-end">
                 <div className="grid gap-2">
                   <Label htmlFor="discountPercent">Discount percentage</Label>
@@ -1968,6 +2035,64 @@ function Field({
   );
 }
 
+function CustomFieldInput({
+  field,
+  value,
+  onChange,
+}: {
+  field: CustomFieldDefinition;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  if (field.fieldType === "boolean")
+    return (
+      <label className="flex min-h-10 items-center gap-2 rounded-md border bg-white px-3 text-sm font-medium sm:self-end">
+        <input
+          type="checkbox"
+          checked={value === "true"}
+          onChange={(e) => onChange(String(e.target.checked))}
+          className="size-4 accent-emerald-700"
+        />
+        {field.label}
+        {field.required && " *"}
+      </label>
+    );
+  return (
+    <div className="grid gap-2">
+      <Label>
+        {field.label}
+        {field.required && " *"}
+      </Label>
+      {field.fieldType === "select" ? (
+        <select
+          required={field.required}
+          className="h-10 rounded-md border bg-white px-3 text-sm"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          <option value="">Select</option>
+          {field.options.map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </select>
+      ) : (
+        <Input
+          required={field.required}
+          type={
+            field.fieldType === "number"
+              ? "number"
+              : field.fieldType === "date"
+                ? "date"
+                : "text"
+          }
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
+    </div>
+  );
+}
+
 function colourSwatch(name: string) {
   return name === "White Linear"
     ? "#f4f3ed"
@@ -2221,6 +2346,18 @@ function QuoteRecord({
   const gst = (total * 3) / 23;
   function updateField(key: keyof Quote, value: string) {
     setWorking((current) => (current ? { ...current, [key]: value } : current));
+  }
+  function updateCustomField(fieldId: number, value: string) {
+    setWorking((current) =>
+      current
+        ? {
+            ...current,
+            customFields: (current.customFields ?? []).map((field) =>
+              field.fieldId === fieldId ? { ...field, value } : field,
+            ),
+          }
+        : current,
+    );
   }
   function updateItem(
     index: number,
@@ -2739,6 +2876,51 @@ function QuoteRecord({
               </>
             )}
           </div>
+          {(working.customFields ?? []).filter((field) => field.showNewQuote)
+            .length > 0 && (
+            <div className="mt-3 rounded-xl border bg-slate-50 p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Additional job details
+              </p>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                {(working.customFields ?? [])
+                  .filter((field) => field.showNewQuote)
+                  .map((field) =>
+                    editing ? (
+                      <CustomFieldInput
+                        key={field.fieldId}
+                        field={{
+                          id: field.fieldId,
+                          fieldKey: field.fieldKey,
+                          label: field.label,
+                          fieldType: field.fieldType,
+                          options: field.options ?? [],
+                          required: field.required ?? false,
+                          showNewQuote: field.showNewQuote ?? true,
+                          showDashboard: field.showDashboard ?? false,
+                          showJobCard: field.showJobCard ?? false,
+                          active: field.active ?? true,
+                          sortOrder: field.sortOrder ?? 0,
+                        }}
+                        value={field.value}
+                        onChange={(value) =>
+                          updateCustomField(field.fieldId, value)
+                        }
+                      />
+                    ) : (
+                      <div key={field.fieldId}>
+                        <p className="text-xs font-semibold text-slate-500">
+                          {field.label}
+                        </p>
+                        <p className="mt-1 font-medium text-slate-900">
+                          {displayCustomValue(field.value, field.fieldType)}
+                        </p>
+                      </div>
+                    ),
+                  )}
+              </div>
+            </div>
+          )}
           <div className="mt-3 grid gap-3 rounded-xl border bg-amber-50/50 p-4 sm:grid-cols-2 sm:items-end">
             <div>
               {editing ? (
