@@ -34,6 +34,7 @@ import { Label } from "@/components/ui/label";
 import { ACCESSORY_OPTIONS, IROBE_OPTIONS } from "../lib/quote-options";
 import { displayedJobNumber } from "@/lib/job-reference";
 import CustomFieldSettings from "./custom-field-settings";
+import JobCardSettings from "./job-card-settings";
 
 type Quote = {
   id: number;
@@ -1709,6 +1710,7 @@ export function SettingsPanel() {
           </div>
         </section>
       </form>
+      <JobCardSettings />
       <CustomFieldSettings />
     </div>
   );

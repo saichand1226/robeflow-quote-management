@@ -25,6 +25,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { displayedJobNumber } from "@/lib/job-reference";
 import { displayCustomValue, type CustomFieldValue } from "@/lib/custom-fields";
+import {
+  defaultJobCardFields,
+  jobCardFieldOptions,
+  type JobCardFieldKey,
+} from "@/lib/job-card-fields";
 
 type Job = {
   id: number;
@@ -51,6 +56,7 @@ type Job = {
   trackingNumber?: string;
   pickListStatus?: string;
   acceptanceToken?: string;
+  createdAt?: string;
   customFields?: CustomFieldValue[];
 };
 type Board = "Sales" | "Dispatch" | "Installation";
@@ -177,13 +183,19 @@ export default function JobBoard({ currentName }: { currentName: string }) {
     [payment, setPayment] = useState("All"),
     [mine, setMine] = useState(false),
     [selected, setSelected] = useState<Job | null>(null),
-    [busy, setBusy] = useState<number | null>(null);
+    [busy, setBusy] = useState<number | null>(null),
+    [cardFields, setCardFields] =
+      useState<JobCardFieldKey[]>(defaultJobCardFields);
   async function load() {
     const r = await fetch("/api/quotes");
     if (r.ok) setJobs((await r.json()).quotes ?? []);
   }
   useEffect(() => {
     load();
+    fetch("/api/job-card-preferences")
+      .then((response) => response.json())
+      .then((data) => setCardFields(data.visibleFields ?? defaultJobCardFields))
+      .catch(() => {});
   }, []);
   const people = useMemo(
     () =>
@@ -275,31 +287,36 @@ export default function JobBoard({ currentName }: { currentName: string }) {
             {job.serviceType || "Pick Up"}
           </span>
         </div>
-        <h3 className="mt-2 line-clamp-1 font-bold text-slate-900">
+        <h3 className="mt-2 line-clamp-1 text-base font-bold text-slate-900">
           {job.customerName}
         </h3>
         <p className="mt-0.5 line-clamp-1 text-sm text-slate-500">
           {job.project}
         </p>
-        {fields.length > 0 && (
-          <dl className="mt-3 space-y-1 rounded-lg bg-slate-50 p-2 text-xs">
-            {fields.map((field) => (
-              <div key={field.fieldId} className="flex justify-between gap-2">
-                <dt className="truncate text-slate-500">{field.label}</dt>
-                <dd className="truncate font-semibold text-slate-800">
-                  {displayCustomValue(field.value, field.fieldType)}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        )}
+        <dl className="mt-3 space-y-2 border-y py-3 text-xs">
+          {cardFields.map((key) => (
+            <JobCardDetail key={key} fieldKey={key} job={job} />
+          ))}
+          {fields.length > 0 && (
+            <>
+              {fields.map((field) => (
+                <div key={field.fieldId} className="flex justify-between gap-2">
+                  <dt className="truncate text-slate-500">{field.label}</dt>
+                  <dd className="max-w-[55%] truncate rounded bg-emerald-100 px-1.5 py-0.5 font-semibold text-emerald-900">
+                    {displayCustomValue(field.value, field.fieldType)}
+                  </dd>
+                </div>
+              ))}
+            </>
+          )}
+        </dl>
         <div className="mt-3 flex flex-wrap gap-1.5">
           <Badge value={job.invoiceStatus || "Invoice pending"} />
           {job.pickListStatus && job.pickListStatus !== "Not generated" && (
             <Badge value={`Pick: ${job.pickListStatus}`} />
           )}
         </div>
-        <div className="mt-3 flex items-end justify-between gap-2 border-t pt-3">
+        <div className="mt-3 flex items-end justify-between gap-2">
           <span className="line-clamp-1 text-xs text-slate-500">
             {job.salespersonName || "Unassigned"}
           </span>
@@ -466,6 +483,49 @@ export default function JobBoard({ currentName }: { currentName: string }) {
         bookings.
       </p>
       <JobDialog job={selected} onClose={() => setSelected(null)} />
+    </div>
+  );
+}
+
+function JobCardDetail({
+  fieldKey,
+  job,
+}: {
+  fieldKey: JobCardFieldKey;
+  job: Job;
+}) {
+  const field = jobCardFieldOptions.find((item) => item.key === fieldKey);
+  if (!field) return null;
+  const raw = job[fieldKey as keyof Job];
+  let value = String(raw ?? "").trim();
+  if (fieldKey === "amount") value = cash(Number(raw) || 0);
+  if (["createdAt", "followUpDate", "validUntil"].includes(fieldKey) && value) {
+    const date = new Date(value.includes("T") ? value : `${value}T00:00:00`);
+    if (!Number.isNaN(date.getTime())) value = date.toLocaleDateString("en-NZ");
+  }
+  if (!value) value = "Not recorded";
+  const highlighted = [
+    "serviceType",
+    "salespersonName",
+    "invoiceStatus",
+    "jobStage",
+    "dispatchStatus",
+    "pickListStatus",
+  ].includes(fieldKey);
+  return (
+    <div className="flex items-start justify-between gap-2">
+      <dt className="shrink-0 text-slate-500">{field.label}</dt>
+      <dd
+        className={`max-w-[58%] break-words text-right font-semibold ${
+          highlighted
+            ? "rounded bg-violet-100 px-1.5 py-0.5 text-violet-800"
+            : value === "Not recorded"
+              ? "font-normal text-slate-400"
+              : "text-slate-800"
+        }`}
+      >
+        {value}
+      </dd>
     </div>
   );
 }
