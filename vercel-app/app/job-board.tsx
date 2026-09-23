@@ -72,6 +72,33 @@ const cash = (value: number) =>
     currency: "NZD",
     maximumFractionDigits: 0,
   }).format(value || 0);
+const columnThemes = [
+  {
+    shell: "border-sky-200/80 bg-sky-50/80",
+    bar: "bg-sky-500",
+    badge: "bg-sky-100 text-sky-700",
+  },
+  {
+    shell: "border-amber-200/80 bg-amber-50/80",
+    bar: "bg-amber-500",
+    badge: "bg-amber-100 text-amber-700",
+  },
+  {
+    shell: "border-emerald-200/80 bg-emerald-50/80",
+    bar: "bg-emerald-500",
+    badge: "bg-emerald-100 text-emerald-700",
+  },
+  {
+    shell: "border-rose-200/80 bg-rose-50/70",
+    bar: "bg-rose-500",
+    badge: "bg-rose-100 text-rose-700",
+  },
+  {
+    shell: "border-violet-200/80 bg-violet-50/70",
+    bar: "bg-violet-500",
+    badge: "bg-violet-100 text-violet-700",
+  },
+];
 const salesColumns: Column[] = [
   {
     name: "Draft",
@@ -277,13 +304,14 @@ export default function JobBoard({ currentName }: { currentName: string }) {
         }
         onClick={() => setSelected(job)}
         key={job.id}
-        className={`cursor-grab rounded-xl border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-400 hover:shadow-md active:cursor-grabbing ${busy === job.id ? "opacity-50" : ""}`}
+        className={`group relative cursor-grab overflow-hidden rounded-2xl border border-white/80 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/70 transition duration-200 hover:-translate-y-1 hover:ring-emerald-300 hover:shadow-[0_14px_30px_rgba(16,185,129,0.16)] active:cursor-grabbing ${busy === job.id ? "opacity-50" : ""}`}
       >
+        <span className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-sky-400" />
         <div className="flex items-start justify-between gap-2">
           <span className="text-sm font-bold text-emerald-700">
             {displayedJobNumber(job)}
           </span>
-          <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold">
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-700">
             {job.serviceType || "Pick Up"}
           </span>
         </div>
@@ -293,7 +321,7 @@ export default function JobBoard({ currentName }: { currentName: string }) {
         <p className="mt-0.5 line-clamp-1 text-sm text-slate-500">
           {job.project}
         </p>
-        <dl className="mt-3 space-y-2 border-y py-3 text-xs">
+        <dl className="mt-3 space-y-2 rounded-xl bg-gradient-to-br from-slate-50 to-emerald-50/40 p-3 text-xs ring-1 ring-slate-100">
           {cardFields.map((key) => (
             <JobCardDetail key={key} fieldKey={key} job={job} />
           ))}
@@ -326,8 +354,9 @@ export default function JobBoard({ currentName }: { currentName: string }) {
     );
   }
   return (
-    <div className="space-y-5">
-      <section className="rounded-2xl border bg-white p-5 shadow-sm">
+    <div className="-m-5 min-h-[calc(100vh-5rem)] space-y-5 bg-[radial-gradient(circle_at_top_right,_rgba(45,212,191,0.14),_transparent_32%),linear-gradient(135deg,_#f8fafc_0%,_#f0fdfa_48%,_#eff6ff_100%)] p-5">
+      <section className="overflow-hidden rounded-3xl border border-white/80 bg-white/90 p-5 shadow-[0_12px_35px_rgba(15,23,42,0.08)] backdrop-blur">
+        <div className="-mx-5 -mt-5 mb-5 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-sky-500" />
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <h2 className="flex items-center gap-2 text-xl font-bold">
@@ -365,7 +394,7 @@ export default function JobBoard({ currentName }: { currentName: string }) {
             </a>
           </div>
         </div>
-        <div className="mt-5 flex flex-wrap items-center gap-2 border-t pt-4">
+        <div className="mt-5 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-100 bg-slate-50/80 p-3">
           <div className="relative min-w-56 flex-1">
             <Search className="absolute left-3 top-2.5 size-4 text-slate-400" />
             <Input
@@ -429,7 +458,7 @@ export default function JobBoard({ currentName }: { currentName: string }) {
           )}
         </div>
       </section>
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/70 bg-white/60 p-2 shadow-sm backdrop-blur">
         {(["Sales", "Dispatch", "Installation"] as Board[]).map((name) => (
           <Button
             key={name}
@@ -441,13 +470,14 @@ export default function JobBoard({ currentName }: { currentName: string }) {
         ))}
       </div>
       {view === "Board" ? (
-        <section className="flex min-h-[32rem] gap-4 overflow-x-auto pb-4">
-          {columns.map((column) => {
+        <section className="flex min-h-[32rem] gap-4 overflow-x-auto rounded-3xl border border-white/70 bg-white/35 p-3 pb-5 shadow-inner backdrop-blur-sm">
+          {columns.map((column, columnIndex) => {
             const rows = filtered.filter(column.match);
+            const theme = columnThemes[columnIndex % columnThemes.length];
             return (
               <div
                 key={column.name}
-                className="w-72 shrink-0 rounded-2xl bg-slate-100/80 p-3"
+                className={`relative w-72 shrink-0 overflow-hidden rounded-2xl border p-3 shadow-sm ${theme.shell}`}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   const id = Number(e.dataTransfer.getData("text/job-id")),
@@ -455,18 +485,21 @@ export default function JobBoard({ currentName }: { currentName: string }) {
                   if (job) move(job, column);
                 }}
               >
-                <div className="mb-3 flex items-center justify-between px-1">
+                <span className={`absolute inset-x-0 top-0 h-1 ${theme.bar}`} />
+                <div className="mb-3 mt-1 flex items-center justify-between px-1">
                   <h3 className="text-sm font-bold text-slate-800">
                     {column.name}
                   </h3>
-                  <span className="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-slate-500">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${theme.badge}`}
+                  >
                     {rows.length}
                   </span>
                 </div>
                 <div className="space-y-3">
                   {rows.map(card)}
                   {!rows.length && (
-                    <div className="rounded-xl border border-dashed bg-white/60 p-5 text-center text-xs text-slate-400">
+                    <div className="rounded-xl border-2 border-dashed border-white bg-white/55 p-6 text-center text-xs font-medium text-slate-400 shadow-inner">
                       Drop a job here
                     </div>
                   )}
