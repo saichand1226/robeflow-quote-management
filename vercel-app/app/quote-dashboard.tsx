@@ -57,6 +57,7 @@ import {
 } from "./customer-workspace";
 import StaffAccountsPanel from "./staff-accounts-panel";
 import JobBoard from "./job-board";
+import WorkspaceHeaderTools from "./workspace-header-tools";
 import {
   ActionCentre,
   ArchivePanel,
@@ -697,13 +698,19 @@ export default function QuoteDashboard({
               </p>
             </div>
           </div>
-          {section === "dashboard" &&
-            ["Admin", "Sales", "Staff"].includes(userRole) && (
-              <NewQuote
-                {...{ open, setOpen, createQuote, saving }}
-                onEmailed={replaceQuote}
-              />
-            )}
+          <div className="flex items-center gap-2">
+            <WorkspaceHeaderTools
+              quotes={quotes}
+              onOpen={(quote) => openQuote(quote as Quote)}
+            />
+            {section === "dashboard" &&
+              ["Admin", "Sales", "Staff"].includes(userRole) && (
+                <NewQuote
+                  {...{ open, setOpen, createQuote, saving }}
+                  onEmailed={replaceQuote}
+                />
+              )}
+          </div>
         </header>
         <div className="space-y-7 p-4 sm:p-8">
           {section === "board" ? (
@@ -761,6 +768,44 @@ export default function QuoteDashboard({
                 />
               </section>
               <SalesReports quotes={activeQuotes} />
+              <section className="rounded-2xl border bg-white p-5 shadow-sm">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold">
+                      Data exports and backups
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Download current business data as CSV for reporting or an
+                      offline backup.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <a
+                      href="/api/exports/quotes"
+                      className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-semibold hover:bg-slate-50"
+                    >
+                      <Download className="size-4" />
+                      Quotes & jobs
+                    </a>
+                    <a
+                      href="/api/exports/customers"
+                      className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-semibold hover:bg-slate-50"
+                    >
+                      <Download className="size-4" />
+                      Customers
+                    </a>
+                    {["Admin", "Accounts", "Staff"].includes(userRole) && (
+                      <a
+                        href="/api/exports/payments"
+                        className="inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-semibold hover:bg-slate-50"
+                      >
+                        <Download className="size-4" />
+                        Payments
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </section>
               <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
                 <div className="flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
                   <div>
