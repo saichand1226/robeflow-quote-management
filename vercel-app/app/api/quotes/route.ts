@@ -3,11 +3,18 @@ import { camel, requireStaff, snake } from "@/lib/api-auth";
 export async function GET() {
   const auth = await requireStaff();
   if (auth.error) return auth.error;
-  const { data, error } = await auth.supabase
-    .from("quotes")
-    .select("*")
-    .eq("archived", false)
-    .order("created_at", { ascending: false });
+  const [{ data, error }, { data: fieldValues }] = await Promise.all([
+    auth.supabase
+      .from("quotes")
+      .select("*")
+      .eq("archived", false)
+      .order("created_at", { ascending: false }),
+    auth.supabase
+      .from("quote_custom_field_values")
+      .select(
+        "quote_id,value,custom_field_definitions(id,field_key,label,field_type,show_dashboard,show_job_card,active)",
+      ),
+  ]);
   return error
     ? Response.json({ error: error.message }, { status: 500 })
     : Response.json({
@@ -23,7 +30,24 @@ export async function GET() {
                     : quote.invoiceStatus === "Paid 50%"
                       ? "50% Paid"
                       : quote.invoiceStatus;
-          return { ...quote, invoiceStatus: status };
+          const customFields = (fieldValues ?? [])
+            .filter(
+              (value: any) =>
+                value.quote_id === row.id &&
+                value.custom_field_definitions?.active,
+            )
+            .map((value: any) =>
+              camel({
+                field_id: value.custom_field_definitions.id,
+                field_key: value.custom_field_definitions.field_key,
+                label: value.custom_field_definitions.label,
+                field_type: value.custom_field_definitions.field_type,
+                show_dashboard: value.custom_field_definitions.show_dashboard,
+                show_job_card: value.custom_field_definitions.show_job_card,
+                value: value.value,
+              }),
+            );
+          return { ...quote, invoiceStatus: status, customFields };
         }),
       });
 }
@@ -32,6 +56,27 @@ export async function POST(request: Request) {
   const auth = await requireStaff(["Admin", "Sales", "Staff"]);
   if (auth.error) return auth.error;
   const b = await request.json();
+  const { data: customDefinitions } = await auth.supabase
+    .from("custom_field_definitions")
+    .select("id,label,required")
+    .eq("active", true)
+    .eq("show_new_quote", true);
+  const customFields: Record<string, string> = Array.isArray(b.customFields)
+    ? Object.fromEntries(
+        b.customFields.map((field: { fieldId: number; value: string }) => [
+          field.fieldId,
+          field.value,
+        ]),
+      )
+    : (b.customFields ?? {});
+  const missing = (customDefinitions ?? []).find(
+    (field) => field.required && !String(customFields[field.id] ?? "").trim(),
+  );
+  if (missing)
+    return Response.json(
+      { error: `${missing.label} is required.` },
+      { status: 400 },
+    );
   const items = (b.items ?? []).filter((item: { category?: string }) =>
     item.category?.trim(),
   );
@@ -153,13 +198,25 @@ export async function POST(request: Request) {
     .insert(rows);
   if (itemError)
     return Response.json({ error: itemError.message }, { status: 400 });
-  await auth.supabase
-    .from("quote_activities")
-    .insert({
+  const customRows = Object.entries(customFields)
+    .filter(([, value]) => String(value).trim() !== "")
+    .map(([fieldId, value]) => ({
       quote_id: quote.id,
-      action: "Quote created",
-      detail: "Draft quotation created",
-      actor: b.salespersonName?.trim() || auth.profile.full_name,
-    });
+      field_id: Number(fieldId),
+      value: String(value),
+    }));
+  if (customRows.length) {
+    const { error: customError } = await auth.supabase
+      .from("quote_custom_field_values")
+      .insert(customRows);
+    if (customError)
+      return Response.json({ error: customError.message }, { status: 400 });
+  }
+  await auth.supabase.from("quote_activities").insert({
+    quote_id: quote.id,
+    action: "Quote created",
+    detail: "Draft quotation created",
+    actor: b.salespersonName?.trim() || auth.profile.full_name,
+  });
   return Response.json({ quote: camel(quote) }, { status: 201 });
 }
