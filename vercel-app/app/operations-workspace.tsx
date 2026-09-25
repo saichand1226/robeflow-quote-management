@@ -15,6 +15,7 @@ import {
   PackagePlus,
   Plus,
   RotateCcw,
+  ReceiptText,
   Save,
   Settings2,
   Truck,
@@ -597,7 +598,13 @@ export function DispatchPanel() {
     [search, setSearch] = useState(""),
     [tab, setTab] = useState("Installation"),
     [saving, setSaving] = useState<number | null>(null),
-    [tracking, setTracking] = useState<Record<number, string>>({});
+    [tracking, setTracking] = useState<Record<number, string>>({}),
+    [adjustmentJob, setAdjustmentJob] = useState<Quote | null>(null),
+    [adjustment, setAdjustment] = useState({
+      description: "",
+      amount: "",
+      dueDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+    });
   const set = (read: (event: { target: { value: string } }) => string) => {
     const target = window.event?.target as HTMLInputElement | null;
     setSearch(read({ target: { value: target?.value || "" } }));
@@ -665,6 +672,36 @@ export function DispatchPanel() {
         job.id === q.id ? { ...job, pickListOpened: true } : job,
       ),
     );
+  }
+  async function sendAdditionalInvoice(event: React.FormEvent) {
+    event.preventDefault();
+    if (!adjustmentJob) return;
+    setSaving(adjustmentJob.id);
+    try {
+      const response = await fetch("/api/additional-invoices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quoteId: adjustmentJob.id, ...adjustment }),
+      });
+      const result = await response.json();
+      if (!response.ok)
+        return window.alert(
+          result.error || "The additional invoice could not be sent.",
+        );
+      window.alert(
+        `Additional invoice ${result.invoice.invoiceNumber} was emailed to ${adjustmentJob.email}.`,
+      );
+      setAdjustmentJob(null);
+      setAdjustment({
+        description: "",
+        amount: "",
+        dueDate: new Date(Date.now() + 14 * 86400000)
+          .toISOString()
+          .slice(0, 10),
+      });
+    } finally {
+      setSaving(null);
+    }
   }
   return (
     <div className="space-y-6">
@@ -806,6 +843,15 @@ export function DispatchPanel() {
                       Invoice
                     </a>
                   )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAdjustmentJob(q)}
+                  >
+                    <ReceiptText className="size-4" />
+                    Add extra invoice
+                  </Button>
                 </div>
               </div>
               <div className="mt-5 grid gap-3 border-t pt-4 md:grid-cols-[13rem_1fr_auto]">
@@ -895,6 +941,82 @@ export function DispatchPanel() {
           </div>
         )}
       </section>
+      <Dialog
+        open={!!adjustmentJob}
+        onOpenChange={(open) => !open && setAdjustmentJob(null)}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <form onSubmit={sendAdditionalInvoice}>
+            <DialogHeader>
+              <DialogTitle>Add dispatch invoice</DialogTitle>
+              <DialogDescription>
+                Record a missing pick-list item or price adjustment and email a
+                separate invoice to {adjustmentJob?.customerName}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-5">
+              <div>
+                <Label>Missing item or reason</Label>
+                <textarea
+                  required
+                  className="mt-2 min-h-24 w-full rounded-md border p-3 text-sm"
+                  value={adjustment.description}
+                  onChange={(e) =>
+                    setAdjustment({
+                      ...adjustment,
+                      description: e.target.value,
+                    })
+                  }
+                  placeholder="Describe what was missing or added"
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>Additional amount incl. GST</Label>
+                  <Input
+                    className="mt-2"
+                    required
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={adjustment.amount}
+                    onChange={(e) =>
+                      setAdjustment({ ...adjustment, amount: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>Due date</Label>
+                  <Input
+                    className="mt-2"
+                    required
+                    type="date"
+                    value={adjustment.dueDate}
+                    onChange={(e) =>
+                      setAdjustment({ ...adjustment, dueDate: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setAdjustmentJob(null)}
+              >
+                Cancel
+              </Button>
+              <Button disabled={!adjustmentJob || saving === adjustmentJob.id}>
+                <Mail className="size-4" />
+                {saving === adjustmentJob?.id
+                  ? "Sending…"
+                  : "Create and email invoice"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
   Mail,
   MapPin,
   Menu,
+  Minus,
   PackagePlus,
   Paperclip,
   Pencil,
@@ -1627,16 +1628,61 @@ function NewQuote({
                           >
                             Quantity
                           </Label>
-                          <Input
-                            id={`quantity-${index}`}
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              updateItem(index, "quantity", e.target.value)
-                            }
-                          />
+                          <div className="flex h-10 overflow-hidden rounded-md border bg-white">
+                            <button
+                              type="button"
+                              className="grid w-10 place-items-center border-r hover:bg-slate-50"
+                              onClick={() =>
+                                updateItem(
+                                  index,
+                                  "quantity",
+                                  String(
+                                    Math.max(
+                                      1,
+                                      (Number(item.quantity) || 1) - 1,
+                                    ),
+                                  ),
+                                )
+                              }
+                              aria-label="Decrease quantity"
+                            >
+                              <Minus className="size-4" />
+                            </button>
+                            <Input
+                              id={`quantity-${index}`}
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={item.quantity}
+                              onChange={(e) =>
+                                updateItem(
+                                  index,
+                                  "quantity",
+                                  String(
+                                    Math.max(
+                                      1,
+                                      e.currentTarget.valueAsNumber || 1,
+                                    ),
+                                  ),
+                                )
+                              }
+                              className="h-10 rounded-none border-0 text-center shadow-none focus-visible:ring-0"
+                            />
+                            <button
+                              type="button"
+                              className="grid w-10 place-items-center border-l hover:bg-slate-50"
+                              onClick={() =>
+                                updateItem(
+                                  index,
+                                  "quantity",
+                                  String((Number(item.quantity) || 1) + 1),
+                                )
+                              }
+                              aria-label="Increase quantity"
+                            >
+                              <Plus className="size-4" />
+                            </button>
+                          </div>
                         </div>
                         <div className="grid gap-1.5">
                           <Label
@@ -2825,15 +2871,60 @@ function QuoteRecord({
                       <div className="grid gap-2 sm:grid-cols-[6rem_9rem_1fr]">
                         <div>
                           <Label className="text-xs">Quantity</Label>
-                          <Input
-                            className="mt-1"
-                            type="number"
-                            min="1"
-                            value={item.quantity || 1}
-                            onChange={(e) =>
-                              updateItem(index, "quantity", e.target.value)
-                            }
-                          />
+                          <div className="mt-1 flex h-10 overflow-hidden rounded-md border bg-white">
+                            <button
+                              type="button"
+                              className="grid w-9 place-items-center border-r hover:bg-slate-50"
+                              onClick={() =>
+                                updateItem(
+                                  index,
+                                  "quantity",
+                                  String(
+                                    Math.max(
+                                      1,
+                                      (Number(item.quantity) || 1) - 1,
+                                    ),
+                                  ),
+                                )
+                              }
+                              aria-label="Decrease quantity"
+                            >
+                              <Minus className="size-4" />
+                            </button>
+                            <Input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={item.quantity || 1}
+                              onChange={(e) =>
+                                updateItem(
+                                  index,
+                                  "quantity",
+                                  String(
+                                    Math.max(
+                                      1,
+                                      e.currentTarget.valueAsNumber || 1,
+                                    ),
+                                  ),
+                                )
+                              }
+                              className="h-10 rounded-none border-0 text-center shadow-none focus-visible:ring-0"
+                            />
+                            <button
+                              type="button"
+                              className="grid w-9 place-items-center border-l hover:bg-slate-50"
+                              onClick={() =>
+                                updateItem(
+                                  index,
+                                  "quantity",
+                                  String((Number(item.quantity) || 1) + 1),
+                                )
+                              }
+                              aria-label="Increase quantity"
+                            >
+                              <Plus className="size-4" />
+                            </button>
+                          </div>
                         </div>
                         <div>
                           <Label className="text-xs">Unit price</Label>

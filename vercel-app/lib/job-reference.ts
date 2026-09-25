@@ -11,15 +11,26 @@ export function jobSequence(quoteNumber = "") {
   return base.match(/(\d+)$/)?.[1] || "";
 }
 
-export function suggestedInvoiceNumber(job: JobReference, phase: "deposit" | "balance" | "full" = "full") {
+export function suggestedInvoiceNumber(
+  job: JobReference,
+  phase: "deposit" | "balance" | "full" = "full",
+) {
   const sequence = jobSequence(job.quoteNumber);
   if (!sequence) return "";
-  if (job.serviceType === "Installation") return `I${sequence}${phase === "deposit" ? "DP" : ""}`;
+  if (job.serviceType === "Installation")
+    return `I${sequence}${phase === "deposit" ? "D" : "DP"}`;
   if (job.serviceType === "Pick Up") return `S${sequence}`;
-  if (job.serviceType === "Freight" || job.serviceType === "Delivery") return `D${sequence}`;
+  if (job.serviceType === "Freight" || job.serviceType === "Delivery")
+    return `D${sequence}`;
   return `I${sequence}`;
 }
 
 export function displayedJobNumber(job: JobReference) {
-  return job.balanceInvoiceNumber || job.depositInvoiceNumber || job.invoiceNumber || job.quoteNumber || "";
+  return (
+    job.balanceInvoiceNumber ||
+    job.depositInvoiceNumber ||
+    job.invoiceNumber ||
+    job.quoteNumber ||
+    ""
+  );
 }

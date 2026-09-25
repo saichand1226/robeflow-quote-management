@@ -1,5 +1,115 @@
-import { camel,requireStaff } from "@/lib/api-auth";
-async function refresh(auth:any,quoteId:number){const[{data:q},{data:p}]=await Promise.all([auth.supabase.from("quotes").select("amount,invoice_status,invoice_sent_at").eq("id",quoteId).single(),auth.supabase.from("payment_transactions").select("amount").eq("quote_id",quoteId)]);const paid=(p??[]).reduce((s:number,x:any)=>s+Number(x.amount),0),amount=Number(q?.amount)||0,status=q?.invoice_status==="Account"?"Account":!q?.invoice_sent_at?"To be Invoiced":paid<=0?"Awaiting Deposit":paid>=amount?"Paid in Full":paid+0.01>=amount/2?"50% Paid":"Part Paid";await auth.supabase.from("quotes").update({invoice_status:status}).eq("id",quoteId);return{paid,status}}
-export async function POST(request:Request){const auth=await requireStaff(["Admin","Accounts","Staff"]);if(auth.error)return auth.error;const b=await request.json();if(!b.quoteId||!(Number(b.amount)>0)||!b.paymentDate)return Response.json({error:"Enter a payment amount and date."},{status:400});const{data,error}=await auth.supabase.from("payment_transactions").insert({quote_id:b.quoteId,amount:Number(b.amount),payment_date:b.paymentDate,method:b.method||"Bank transfer",reference:b.reference?.trim()||"",notes:b.notes?.trim()||"",recorded_by:auth.profile.full_name}).select().single();if(error)return Response.json({error:error.message},{status:400});const summary=await refresh(auth,b.quoteId);return Response.json({payment:camel(data),...summary},{status:201})}
-export async function PATCH(request:Request){const auth=await requireStaff(["Admin","Accounts","Staff"]);if(auth.error)return auth.error;const b=await request.json(),{data:old}=await auth.supabase.from("payment_transactions").select("quote_id").eq("id",b.id).single();if(!old)return Response.json({error:"Payment not found."},{status:404});const{data,error}=await auth.supabase.from("payment_transactions").update({amount:Number(b.amount),payment_date:b.paymentDate,method:b.method,reference:b.reference||"",notes:b.notes||""}).eq("id",b.id).select().single();if(error)return Response.json({error:error.message},{status:400});return Response.json({payment:camel(data),...(await refresh(auth,old.quote_id))})}
-export async function DELETE(request:Request){const auth=await requireStaff(["Admin","Accounts","Staff"]);if(auth.error)return auth.error;const{id}=await request.json(),{data}=await auth.supabase.from("payment_transactions").select("quote_id").eq("id",id).single();if(!data)return Response.json({error:"Payment not found."},{status:404});await auth.supabase.from("payment_transactions").delete().eq("id",id);return Response.json({success:true,...(await refresh(auth,data.quote_id))})}
+import { camel, requireStaff } from "@/lib/api-auth";
+async function refresh(auth: any, quoteId: number) {
+  const [{ data: q }, { data: p }] = await Promise.all([
+    auth.supabase
+      .from("quotes")
+      .select(
+        "amount,invoice_status,invoice_sent_at,service_type,invoice_number,deposit_invoice_number",
+      )
+      .eq("id", quoteId)
+      .single(),
+    auth.supabase
+      .from("payment_transactions")
+      .select("amount")
+      .eq("quote_id", quoteId),
+  ]);
+  const paid = (p ?? []).reduce((s: number, x: any) => s + Number(x.amount), 0),
+    amount = Number(q?.amount) || 0,
+    status =
+      q?.invoice_status === "Account"
+        ? "Account"
+        : !q?.invoice_sent_at
+          ? "To be Invoiced"
+          : paid <= 0
+            ? "Awaiting Deposit"
+            : paid >= amount
+              ? "Paid in Full"
+              : paid + 0.01 >= amount / 2
+                ? "50% Paid"
+                : "Part Paid",
+    changes: any = { invoice_status: status };
+  if (
+    q?.service_type === "Installation" &&
+    paid + 0.01 >= amount / 2 &&
+    String(q.deposit_invoice_number || "").endsWith("D") &&
+    !String(q.deposit_invoice_number || "").endsWith("DP")
+  ) {
+    const paidNumber = `${String(q.deposit_invoice_number).slice(0, -1)}DP`;
+    changes.deposit_invoice_number = paidNumber;
+    changes.invoice_number = paidNumber;
+  }
+  await auth.supabase.from("quotes").update(changes).eq("id", quoteId);
+  return { paid, status, invoiceNumber: changes.invoice_number };
+}
+export async function POST(request: Request) {
+  const auth = await requireStaff(["Admin", "Accounts", "Staff"]);
+  if (auth.error) return auth.error;
+  const b = await request.json();
+  if (!b.quoteId || !(Number(b.amount) > 0) || !b.paymentDate)
+    return Response.json(
+      { error: "Enter a payment amount and date." },
+      { status: 400 },
+    );
+  const { data, error } = await auth.supabase
+    .from("payment_transactions")
+    .insert({
+      quote_id: b.quoteId,
+      amount: Number(b.amount),
+      payment_date: b.paymentDate,
+      method: b.method || "Bank transfer",
+      reference: b.reference?.trim() || "",
+      notes: b.notes?.trim() || "",
+      recorded_by: auth.profile.full_name,
+    })
+    .select()
+    .single();
+  if (error) return Response.json({ error: error.message }, { status: 400 });
+  const summary = await refresh(auth, b.quoteId);
+  return Response.json({ payment: camel(data), ...summary }, { status: 201 });
+}
+export async function PATCH(request: Request) {
+  const auth = await requireStaff(["Admin", "Accounts", "Staff"]);
+  if (auth.error) return auth.error;
+  const b = await request.json(),
+    { data: old } = await auth.supabase
+      .from("payment_transactions")
+      .select("quote_id")
+      .eq("id", b.id)
+      .single();
+  if (!old)
+    return Response.json({ error: "Payment not found." }, { status: 404 });
+  const { data, error } = await auth.supabase
+    .from("payment_transactions")
+    .update({
+      amount: Number(b.amount),
+      payment_date: b.paymentDate,
+      method: b.method,
+      reference: b.reference || "",
+      notes: b.notes || "",
+    })
+    .eq("id", b.id)
+    .select()
+    .single();
+  if (error) return Response.json({ error: error.message }, { status: 400 });
+  return Response.json({
+    payment: camel(data),
+    ...(await refresh(auth, old.quote_id)),
+  });
+}
+export async function DELETE(request: Request) {
+  const auth = await requireStaff(["Admin", "Accounts", "Staff"]);
+  if (auth.error) return auth.error;
+  const { id } = await request.json(),
+    { data } = await auth.supabase
+      .from("payment_transactions")
+      .select("quote_id")
+      .eq("id", id)
+      .single();
+  if (!data)
+    return Response.json({ error: "Payment not found." }, { status: 404 });
+  await auth.supabase.from("payment_transactions").delete().eq("id", id);
+  return Response.json({
+    success: true,
+    ...(await refresh(auth, data.quote_id)),
+  });
+}

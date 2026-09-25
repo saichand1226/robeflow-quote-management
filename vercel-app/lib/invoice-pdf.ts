@@ -1,20 +1,358 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import {
+  PDFDocument,
+  StandardFonts,
+  rgb,
+  type PDFFont,
+  type PDFPage,
+} from "pdf-lib";
 
-type Item={category:string;systemType:string;colour:string;price:number};
-type Payment={amount:number;paymentDate:string;method:string;reference:string};
-type InvoiceData={invoiceNumber:string;quoteNumber:string;customerName:string;companyName?:string;email?:string;phone?:string;customerAddress?:string;siteAddress?:string;project:string;amount:number;createdAt?:string;invoiceSentAt?:string;items:Item[];payments:Payment[];bankDetails:string;companyNameSetting:string;companyAddress:string;gstNumber:string};
-const green=rgb(0.016,0.471,0.341),navy=rgb(0.067,0.094,0.153),slate=rgb(0.392,0.455,0.545),line=rgb(0.86,0.89,0.93),pale=rgb(0.94,0.98,0.96);
-const money=(value:number)=>new Intl.NumberFormat("en-NZ",{style:"currency",currency:"NZD",minimumFractionDigits:2,maximumFractionDigits:2}).format(Math.round((value+Number.EPSILON)*100)/100);
-const date=(value?:string)=>new Date(value??Date.now()).toLocaleDateString("en-NZ");
-function wrap(text:string,font:PDFFont,size:number,width:number){const words=text.replace(/\s+/g," ").trim().split(" ").filter(Boolean),lines:string[]=[];let current="";for(const word of words){const next=current?`${current} ${word}`:word;if(font.widthOfTextAtSize(next,size)<=width)current=next;else{if(current)lines.push(current);current=word}}if(current)lines.push(current);return lines.length?lines:[""]}
-function footer(page:PDFPage,font:PDFFont,data:InvoiceData){page.drawLine({start:{x:42,y:52},end:{x:553,y:52},thickness:.7,color:line});page.drawText(`${data.companyNameSetting} | ${data.companyAddress}`,{x:42,y:34,size:8,font,color:slate});page.drawText(data.invoiceNumber,{x:553-font.widthOfTextAtSize(data.invoiceNumber,8),y:34,size:8,font,color:slate})}
-export async function createInvoicePdf(data:InvoiceData){
- const pdf=await PDFDocument.create(),regular=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold),page=pdf.addPage([595.28,841.89]);let y=786;
- page.drawRectangle({x:42,y:y-4,width:40,height:40,color:green});page.drawText("RF",{x:52,y:y+10,size:13,font:bold,color:rgb(1,1,1)});page.drawText(data.companyNameSetting,{x:94,y:y+16,size:20,font:bold,color:navy});page.drawText(data.companyAddress,{x:94,y:y-1,size:9,font:regular,color:slate});page.drawText("TAX INVOICE",{x:402,y:y+16,size:20,font:regular,color:green});page.drawText(data.invoiceNumber,{x:553-bold.widthOfTextAtSize(data.invoiceNumber,10),y:y-1,size:10,font:bold,color:navy});page.drawLine({start:{x:42,y:y-24},end:{x:553,y:y-24},thickness:3,color:green});y-=72;
- page.drawText("BILL TO",{x:42,y,size:8,font:bold,color:slate});page.drawText(data.customerName,{x:42,y:y-22,size:14,font:bold,color:navy});let cy=y-40;for(const value of [data.companyName,data.email,data.phone,data.customerAddress].filter(Boolean) as string[])for(const text of wrap(value,regular,9,245)){page.drawText(text,{x:42,y:cy,size:9,font:regular,color:slate});cy-=13}
- page.drawText("Invoice date",{x:380,y,size:9,font:regular,color:slate});page.drawText(date(data.invoiceSentAt||data.createdAt),{x:480,y,size:10,font:bold,color:navy});page.drawText("Quote reference",{x:380,y:y-22,size:9,font:regular,color:slate});page.drawText(data.quoteNumber,{x:480,y:y-22,size:10,font:bold,color:navy});if(data.gstNumber){page.drawText("GST number",{x:380,y:y-44,size:9,font:regular,color:slate});page.drawText(data.gstNumber,{x:480,y:y-44,size:10,font:bold,color:navy})}if(data.siteAddress){page.drawText("Site",{x:380,y:y-66,size:9,font:regular,color:slate});wrap(data.siteAddress,regular,8.5,150).slice(0,2).forEach((text,i)=>page.drawText(text,{x:430,y:y-66-i*11,size:8.5,font:regular,color:navy}))}y=Math.min(cy-18,y-104);
- page.drawRectangle({x:42,y:y-26,width:511,height:28,color:navy});page.drawText("DESCRIPTION",{x:54,y:y-17,size:9,font:bold,color:rgb(1,1,1)});page.drawText("AMOUNT INCL. GST",{x:452,y:y-17,size:9,font:bold,color:rgb(1,1,1)});y-=27;
- for(const item of data.items){page.drawText(item.category,{x:54,y:y-20,size:10.5,font:bold,color:navy});page.drawText(`${item.systemType}${item.colour?` | ${item.colour}`:""}`,{x:54,y:y-35,size:8.5,font:regular,color:slate});const amount=money(Number(item.price));page.drawText(amount,{x:541-bold.widthOfTextAtSize(amount,10.5),y:y-25,size:10.5,font:bold,color:navy});page.drawLine({start:{x:42,y:y-47},end:{x:553,y:y-47},thickness:.7,color:line});y-=48}
- const paid=data.payments.reduce((sum,p)=>sum+Number(p.amount),0),balance=Math.max(0,data.amount-paid);y-=12;for(const [label,value,boldRow] of [["Invoice total",data.amount,false],["Payments received",-paid,false],["Balance due",balance,true]] as [string,number,boolean][]){if(boldRow)page.drawLine({start:{x:350,y:y+11},end:{x:553,y:y+11},thickness:1.5,color:green});page.drawText(label,{x:365,y,size:boldRow?14:9,font:boldRow?bold:regular,color:boldRow?navy:slate});const valueText=money(value);page.drawText(valueText,{x:541-(boldRow?bold:regular).widthOfTextAtSize(valueText,boldRow?14:9),y,size:boldRow?14:9,font:boldRow?bold:regular,color:boldRow?navy:slate});y-=boldRow?30:20}
- const boxY=Math.max(102,y-105);page.drawRectangle({x:42,y:boxY,width:511,height:82,color:pale,borderColor:green,borderWidth:.8});page.drawText("PAY BY BANK TRANSFER",{x:56,y:boxY+61,size:10,font:bold,color:green});let bankY=boxY+44;for(const raw of data.bankDetails.split("\n"))for(const text of wrap(raw,regular,9,475)){page.drawText(text,{x:56,y:bankY,size:9,font:regular,color:navy});bankY-=12}footer(page,regular,data);return pdf.save();
+type Item = {
+  category: string;
+  systemType: string;
+  colour: string;
+  price: number;
+};
+type Payment = {
+  amount: number;
+  paymentDate: string;
+  method: string;
+  reference: string;
+};
+type InvoiceData = {
+  invoiceNumber: string;
+  quoteNumber: string;
+  customerName: string;
+  companyName?: string;
+  email?: string;
+  phone?: string;
+  customerAddress?: string;
+  siteAddress?: string;
+  project: string;
+  amount: number;
+  createdAt?: string;
+  invoiceSentAt?: string;
+  invoiceDueDate?: string;
+  items: Item[];
+  payments: Payment[];
+  bankDetails: string;
+  companyNameSetting: string;
+  companyAddress: string;
+  gstNumber: string;
+};
+const green = rgb(0.016, 0.471, 0.341),
+  navy = rgb(0.067, 0.094, 0.153),
+  slate = rgb(0.392, 0.455, 0.545),
+  line = rgb(0.86, 0.89, 0.93),
+  pale = rgb(0.94, 0.98, 0.96);
+const money = (value: number) =>
+  new Intl.NumberFormat("en-NZ", {
+    style: "currency",
+    currency: "NZD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Math.round((value + Number.EPSILON) * 100) / 100);
+const date = (value?: string) =>
+  new Date(value ?? Date.now()).toLocaleDateString("en-NZ");
+function wrap(text: string, font: PDFFont, size: number, width: number) {
+  const words = text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean),
+    lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (font.widthOfTextAtSize(next, size) <= width) current = next;
+    else {
+      if (current) lines.push(current);
+      current = word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.length ? lines : [""];
+}
+function footer(page: PDFPage, font: PDFFont, data: InvoiceData) {
+  page.drawLine({
+    start: { x: 42, y: 52 },
+    end: { x: 553, y: 52 },
+    thickness: 0.7,
+    color: line,
+  });
+  page.drawText(`${data.companyNameSetting} | ${data.companyAddress}`, {
+    x: 42,
+    y: 34,
+    size: 8,
+    font,
+    color: slate,
+  });
+  page.drawText(data.invoiceNumber, {
+    x: 553 - font.widthOfTextAtSize(data.invoiceNumber, 8),
+    y: 34,
+    size: 8,
+    font,
+    color: slate,
+  });
+}
+export async function createInvoicePdf(data: InvoiceData) {
+  const pdf = await PDFDocument.create(),
+    regular = await pdf.embedFont(StandardFonts.Helvetica),
+    bold = await pdf.embedFont(StandardFonts.HelveticaBold),
+    page = pdf.addPage([595.28, 841.89]);
+  let y = 786;
+  page.drawRectangle({ x: 42, y: y - 4, width: 40, height: 40, color: green });
+  page.drawText("RF", {
+    x: 52,
+    y: y + 10,
+    size: 13,
+    font: bold,
+    color: rgb(1, 1, 1),
+  });
+  page.drawText(data.companyNameSetting, {
+    x: 94,
+    y: y + 16,
+    size: 20,
+    font: bold,
+    color: navy,
+  });
+  page.drawText(data.companyAddress, {
+    x: 94,
+    y: y - 1,
+    size: 9,
+    font: regular,
+    color: slate,
+  });
+  page.drawText("TAX INVOICE", {
+    x: 402,
+    y: y + 16,
+    size: 20,
+    font: regular,
+    color: green,
+  });
+  page.drawText(data.invoiceNumber, {
+    x: 553 - bold.widthOfTextAtSize(data.invoiceNumber, 10),
+    y: y - 1,
+    size: 10,
+    font: bold,
+    color: navy,
+  });
+  page.drawLine({
+    start: { x: 42, y: y - 24 },
+    end: { x: 553, y: y - 24 },
+    thickness: 3,
+    color: green,
+  });
+  y -= 72;
+  page.drawText("BILL TO", { x: 42, y, size: 8, font: bold, color: slate });
+  page.drawText(data.customerName, {
+    x: 42,
+    y: y - 22,
+    size: 14,
+    font: bold,
+    color: navy,
+  });
+  let cy = y - 40;
+  for (const value of [
+    data.companyName,
+    data.email,
+    data.phone,
+    data.customerAddress,
+  ].filter(Boolean) as string[])
+    for (const text of wrap(value, regular, 9, 245)) {
+      page.drawText(text, {
+        x: 42,
+        y: cy,
+        size: 9,
+        font: regular,
+        color: slate,
+      });
+      cy -= 13;
+    }
+  page.drawText("Invoice date", {
+    x: 380,
+    y,
+    size: 9,
+    font: regular,
+    color: slate,
+  });
+  page.drawText(date(data.invoiceSentAt || data.createdAt), {
+    x: 480,
+    y,
+    size: 10,
+    font: bold,
+    color: navy,
+  });
+  page.drawText("Due date", {
+    x: 380,
+    y: y - 22,
+    size: 9,
+    font: regular,
+    color: slate,
+  });
+  page.drawText(date(data.invoiceDueDate), {
+    x: 480,
+    y: y - 22,
+    size: 10,
+    font: bold,
+    color: navy,
+  });
+  page.drawText("Quote reference", {
+    x: 380,
+    y: y - 44,
+    size: 9,
+    font: regular,
+    color: slate,
+  });
+  page.drawText(data.quoteNumber, {
+    x: 480,
+    y: y - 44,
+    size: 10,
+    font: bold,
+    color: navy,
+  });
+  if (data.gstNumber) {
+    page.drawText("GST number", {
+      x: 380,
+      y: y - 66,
+      size: 9,
+      font: regular,
+      color: slate,
+    });
+    page.drawText(data.gstNumber, {
+      x: 480,
+      y: y - 66,
+      size: 10,
+      font: bold,
+      color: navy,
+    });
+  }
+  if (data.siteAddress) {
+    page.drawText("Site", {
+      x: 380,
+      y: y - 88,
+      size: 9,
+      font: regular,
+      color: slate,
+    });
+    wrap(data.siteAddress, regular, 8.5, 150)
+      .slice(0, 2)
+      .forEach((text, i) =>
+        page.drawText(text, {
+          x: 430,
+          y: y - 88 - i * 11,
+          size: 8.5,
+          font: regular,
+          color: navy,
+        }),
+      );
+  }
+  y = Math.min(cy - 18, y - 126);
+  page.drawRectangle({ x: 42, y: y - 26, width: 511, height: 28, color: navy });
+  page.drawText("DESCRIPTION", {
+    x: 54,
+    y: y - 17,
+    size: 9,
+    font: bold,
+    color: rgb(1, 1, 1),
+  });
+  page.drawText("AMOUNT INCL. GST", {
+    x: 452,
+    y: y - 17,
+    size: 9,
+    font: bold,
+    color: rgb(1, 1, 1),
+  });
+  y -= 27;
+  for (const item of data.items) {
+    page.drawText(item.category, {
+      x: 54,
+      y: y - 20,
+      size: 10.5,
+      font: bold,
+      color: navy,
+    });
+    page.drawText(
+      `${item.systemType}${item.colour ? ` | ${item.colour}` : ""}`,
+      { x: 54, y: y - 35, size: 8.5, font: regular, color: slate },
+    );
+    const amount = money(Number(item.price));
+    page.drawText(amount, {
+      x: 541 - bold.widthOfTextAtSize(amount, 10.5),
+      y: y - 25,
+      size: 10.5,
+      font: bold,
+      color: navy,
+    });
+    page.drawLine({
+      start: { x: 42, y: y - 47 },
+      end: { x: 553, y: y - 47 },
+      thickness: 0.7,
+      color: line,
+    });
+    y -= 48;
+  }
+  const paid = data.payments.reduce((sum, p) => sum + Number(p.amount), 0),
+    balance = Math.max(0, data.amount - paid);
+  y -= 12;
+  for (const [label, value, boldRow] of [
+    ["Invoice total", data.amount, false],
+    ["Payments received", -paid, false],
+    ["Balance due", balance, true],
+  ] as [string, number, boolean][]) {
+    if (boldRow)
+      page.drawLine({
+        start: { x: 350, y: y + 11 },
+        end: { x: 553, y: y + 11 },
+        thickness: 1.5,
+        color: green,
+      });
+    page.drawText(label, {
+      x: 365,
+      y,
+      size: boldRow ? 14 : 9,
+      font: boldRow ? bold : regular,
+      color: boldRow ? navy : slate,
+    });
+    const valueText = money(value);
+    page.drawText(valueText, {
+      x:
+        541 -
+        (boldRow ? bold : regular).widthOfTextAtSize(
+          valueText,
+          boldRow ? 14 : 9,
+        ),
+      y,
+      size: boldRow ? 14 : 9,
+      font: boldRow ? bold : regular,
+      color: boldRow ? navy : slate,
+    });
+    y -= boldRow ? 30 : 20;
+  }
+  const boxY = Math.max(102, y - 105);
+  page.drawRectangle({
+    x: 42,
+    y: boxY,
+    width: 511,
+    height: 82,
+    color: pale,
+    borderColor: green,
+    borderWidth: 0.8,
+  });
+  page.drawText("PAY BY BANK TRANSFER", {
+    x: 56,
+    y: boxY + 61,
+    size: 10,
+    font: bold,
+    color: green,
+  });
+  let bankY = boxY + 44;
+  for (const raw of data.bankDetails.split("\n"))
+    for (const text of wrap(raw, regular, 9, 475)) {
+      page.drawText(text, {
+        x: 56,
+        y: bankY,
+        size: 9,
+        font: regular,
+        color: navy,
+      });
+      bankY -= 12;
+    }
+  footer(page, regular, data);
+  return pdf.save();
 }
